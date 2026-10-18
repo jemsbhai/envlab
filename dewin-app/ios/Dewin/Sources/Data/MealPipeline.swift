@@ -42,7 +42,7 @@ final class MealPipeline {
 
     // MARK: Logging
 
-    /// Takes a photo through the glasses and keeps it for review (see `send(_:)`).
+    /// Takes a photo through the glasses and sends it straight to analysis (Claude or the server).
     func logMealFromGlasses(trigger: String) async {
         guard !busy else { return }
         busy = true
@@ -52,12 +52,11 @@ final class MealPipeline {
             lastStatus = "Taking photo…"
             let jpeg = try await glasses.capturePhoto()
             let meal = Meal(photo: jpeg, source: "glasses", trigger: trigger)
-            meal.status = .review
             context.insert(meal)
             try? context.save()
-            lastStatus = "Saved for review"
-            NSLog("[Pipeline] %@ saved for review", meal.id.uuidString)
-            speaker.say("Saved.")
+            NSLog("[Pipeline] %@ captured, sending", meal.id.uuidString)
+            speaker.say("Got it.")
+            await submit(meal)
         } catch {
             lastStatus = error.localizedDescription
             speaker.cue(.failed)

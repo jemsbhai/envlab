@@ -20,6 +20,7 @@ struct SettingsView: View {
     @AppStorage(ClaudeSettings.modelKey) private var claudeModel = ClaudeModel.opus.rawValue
     @State private var claudeKeyDraft = ""
     @State private var claudeHasKey = ClaudeSettings.hasKey
+    @State private var claudeTestResult: String?
     @AppStorage(ClaudeSettings.foodAnalyzerKey) private var foodAnalyzer = "server"
 
     @AppStorage("goal.calories") private var goalCalories = Goals.defaults.calories
@@ -215,11 +216,23 @@ struct SettingsView: View {
                     ClaudeSettings.saveKey(claudeKeyDraft)
                     claudeKeyDraft = ""
                     claudeHasKey = ClaudeSettings.hasKey
+                    claudeTestResult = nil
                     pipeline.foodAnalysisChanged()
                 }
                 .disabled(claudeKeyDraft.isEmpty)
                 LabeledContent("Status", value: claudeHasKey ? "Ready · \(ClaudeModel(rawValue: claudeModel)?.label ?? "")" : "Needs an API key")
                     .font(.caption)
+                if claudeHasKey {
+                    LabeledContent("Saved key", value: ClaudeSettings.keyHint).font(.caption.monospaced())
+                    Button("Test key") {
+                        claudeTestResult = "Testing…"
+                        Task { claudeTestResult = await ClaudeSettings.testKey() }
+                    }
+                    if let claudeTestResult {
+                        Text(claudeTestResult).font(.caption)
+                            .foregroundStyle(claudeTestResult == "Key works." ? Brand.aqua : .orange)
+                    }
+                }
                 if claudeHasKey {
                     Button("Remove API key", role: .destructive) {
                         ClaudeSettings.saveKey("")

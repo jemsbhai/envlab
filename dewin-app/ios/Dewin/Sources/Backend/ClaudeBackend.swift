@@ -28,7 +28,38 @@ enum ClaudeSettings {
     /// The Anthropic API key, in the Keychain (service "io.occh.dewin.anthropic"). Never logged.
     static var apiKey: String { ClaudeKeychain.read() ?? "" }
     static var hasKey: Bool { !apiKey.isEmpty }
-    static func saveKey(_ key: String) { ClaudeKeychain.write(key.trimmingCharacters(in: .whitespacesAndNewlines)) }
+    /// Strips what a paste often brings along: spaces, newlines, quotes, invisible characters.
+    static func saveKey(_ key: String) {
+        let junk = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"'“”‘’`\u{200B}\u{FEFF}"))
+        ClaudeKeychain.write(key.components(separatedBy: junk).joined())
+    }
+
+    /// "sk-ant-api03-… (108 characters)": enough to spot a wrong or truncated key, never the key.
+    static var keyHint: String {
+        let key = apiKey
+        guard !key.isEmpty else { return "none" }
+        return "\(key.prefix(13))… (\(key.count) characters)"
+    }
+
+    /// One tiny request (list models) to check the saved key. Returns Anthropic's own answer.
+    static func testKey() async -> String {
+        let key = apiKey
+        guard !key.isEmpty else { return "No key saved." }
+        var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/models?limit=1")!)
+        request.timeoutInterval = 20
+        request.setValue(key, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if code == 200 { return "Key works." }
+            let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let message = ((json?["error"] as? [String: Any])?["message"] as? String) ?? "no details"
+            return "Anthropic said \(code): \(message)"
+        } catch {
+            return "Couldn't reach Anthropic: \(error.localizedDescription)"
+        }
+    }
 }
 
 /// Food photos only: analyzed by Claude instead of the server. The server connection (air, water,
@@ -75,7 +106,7 @@ struct ClaudeMealAnalyzer: Sendable {
         case noAnswer
         var errorDescription: String? {
             switch self {
-            case .http(401, _): "Claude rejected the API key. Check it in Settings."
+            case let .http(401, message): "Claude rejected the API key (\(message)). Use Test key in Settings › Food analysis."
             case .http(429, _): "Claude is rate limiting. Tap Retry in a minute."
             case let .http(code, message): "Claude error \(code): \(message)"
             case .noAnswer: "Claude didn't return a meal."
@@ -93,10 +124,11 @@ struct ClaudeMealAnalyzer: Sendable {
         let time = meal.capturedAt.formatted(date: .omitted, time: .shortened)
         let body: [String: Any] = [
             "model": model,
-            "max_tokens": 2048,
+            "max_tokens": 8192,
             "system": Self.system,
             "tools": [Self.tool],
-            "tool_choice": ["type": "tool", "name": "record_meal"],
+            // Newer models reject a forced tool ("tool"/"any"); the system prompt asks for it instead.
+            "tool_choice": ["type": "auto"],
             "messages": [[
                 "role": "user",
                 "content": [
@@ -121,10 +153,16 @@ struct ClaudeMealAnalyzer: Sendable {
             throw Failure.http(code, message)
         }
         let content = json["content"] as? [[String: Any]] ?? []
-        guard let input = content.first(where: { $0["type"] as? String == "tool_use" })?["input"] as? [String: Any] else {
-            throw Failure.noAnswer
-        }
+        let toolInput = content.first(where: { $0["type"] as? String == "tool_use" })?["input"] as? [String: Any]
+        guard let input = toolInput ?? Self.jsonObject(inText: content) else { throw Failure.noAnswer }
         return Self.result(from: input, mealId: meal.mealId)
+    }
+
+    /// Fallback when the model answers in text: the first {...} object in its text blocks.
+    static func jsonObject(inText content: [[String: Any]]) -> [String: Any]? {
+        let text = content.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }.joined()
+        guard let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}"), start < end else { return nil }
+        return (try? JSONSerialization.jsonObject(with: Data(text[start...end].utf8))) as? [String: Any]
     }
 
     static func result(from input: [String: Any], mealId: String) -> MealResultMessage {
@@ -163,7 +201,7 @@ struct ClaudeMealAnalyzer: Sendable {
     to false. healthScore is 0–100 for how well the meal fits a balanced diet (fiber, protein, whole foods up; \
     added sugar, sodium, fried and ultra-processed down). tags are short lowercase labels such as high-protein, \
     high-fiber, high-sodium, high-sugar, refined-carbs, balanced, omega-3. tip is one short, practical sentence, \
-    never a lecture.
+    never a lecture. Always answer by calling the record_meal tool exactly once, with no other text.
     """
 
     static let tool: [String: Any] = {
