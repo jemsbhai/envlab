@@ -367,6 +367,9 @@
           "items": {
             "$ref": "#/$defs/SensorMatch"
           }
+        },
+        "regionalAir": {
+          "$ref": "#/$defs/RegionalAir"
         }
       },
       "required": [
@@ -547,6 +550,155 @@
         "error"
       ],
       "additionalProperties": true
+    },
+    "RegionalAirMeasurement": {
+      "type": "object",
+      "properties": {
+        "metric": {
+          "enum": [
+            "pm2_5",
+            "ozone"
+          ]
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0
+        },
+        "unit": {
+          "enum": [
+            "µg/m³",
+            "ppb"
+          ]
+        },
+        "validFrom": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "validTo": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://mapservices\\.weather\\.noaa\\.gov/raster/rest/services/air_quality/[^/]+/ImageServer/identify(?:\\?.*)?$"
+        }
+      },
+      "required": [
+        "metric",
+        "value",
+        "unit",
+        "validFrom",
+        "validTo",
+        "issuedAt",
+        "sourceUrl"
+      ],
+      "additionalProperties": true,
+      "oneOf": [
+        {
+          "properties": {
+            "metric": {
+              "const": "pm2_5"
+            },
+            "unit": {
+              "const": "µg/m³"
+            }
+          }
+        },
+        {
+          "properties": {
+            "metric": {
+              "const": "ozone"
+            },
+            "unit": {
+              "const": "ppb"
+            }
+          }
+        }
+      ]
+    },
+    "RegionalAir": {
+      "type": "object",
+      "description": "Regional NOAA/NWS model forecasts, separate from nearby physical sensors. Optional on older exposure records.",
+      "properties": {
+        "provider": {
+          "const": "NOAA/NWS"
+        },
+        "dataType": {
+          "const": "forecast"
+        },
+        "label": {
+          "const": "NOAA forecast data"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "partial",
+            "unavailable"
+          ]
+        },
+        "fetchedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "measurements": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/RegionalAirMeasurement"
+          }
+        },
+        "error": {
+          "type": "string",
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "provider",
+        "dataType",
+        "label",
+        "status",
+        "fetchedAt",
+        "measurements"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "unavailable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "measurements": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "measurements": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

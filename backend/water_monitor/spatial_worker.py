@@ -16,6 +16,7 @@ from .contract import validate, now_ts
 from .dewin_bus import connect, encode, ensure_resources, kv_get, GEO_STREAM, RESULT_STREAM
 from .spatial import SensorIndex, registry
 from .worker import write_health
+from .noaa import NoaaAir, enrich_exposure
 
 LOG = logging.getLogger("dewin-spatial")
 
@@ -37,6 +38,7 @@ async def run():
     js = nc.jetstream()
     buckets = await ensure_resources(js)
     index, ready = SensorIndex(), asyncio.Event()
+    noaa = NoaaAir()
     applied = 0
     health_path = os.getenv("HEALTH_PATH", "/tmp/dewin-worker-health.json")
     stop = asyncio.Event()
@@ -153,6 +155,7 @@ async def run():
                         if applied < target:
                             raise RuntimeError("Sensor cache is catching up")
                         value = index.match(envelope, registry())
+                        await enrich_exposure(value, noaa)
                         existing = {"userId": envelope["userId"], "exposure": value, "published": False}
                         revision = await buckets["DEWIN_RESULTS"].create(key, encode(existing))
                     if not existing["published"]:
@@ -171,6 +174,7 @@ async def run():
                         pass
                     await asyncio.sleep(.2)
     finally:
+        await noaa.close()
         write_health(health_path, count, ready=False)
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)

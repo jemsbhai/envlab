@@ -6,6 +6,10 @@ end-to-end integration checks; see [validation details](deployment-zerod.md).
 The MQTT broker is live. HA is stopped.
 Food/meal endpoints are outside v1.
 
+**NOAA regional air enrichment is live and publicly verified, 18 October 2026.**
+A new GPS fix returned both PM2.5 and ozone forecasts; the response passed this
+schema, history returned the identical snapshot, and retries reused the receipt.
+
 ## Connection
 
 | Setting | Value |
@@ -153,6 +157,70 @@ reception time. Sensor timestamps are not rewritten when messages are replayed.
 If no eligible, fresh measurement exists, return a normal persisted record with
 `status: "no_match"` and `sensors: []`. Show “No nearby data”, not zero values or
 a safe/unsafe conclusion. Temperature alone is not a water-quality assessment.
+
+### Regional air forecasts: optional `regionalAir`
+
+This deployed additive field appears alongside `sensors`, never inside it. New enriched
+records include a NOAA/NWS snapshot; records created before this extension may
+omit the field. Decode it as optional in both live events and history.
+The JSON fixtures provide `ExposureWithRegionalAir` as a full `Exposure`
+decoding example. Their canonical `Exposure`/`HistoryPage` retain the older
+shape so the local mock does not pretend to fetch NOAA. All fixtures are synthetic.
+The following values are **synthetic decoding examples**, not captured forecasts:
+
+```json
+{
+  "regionalAir": {
+    "provider": "NOAA/NWS",
+    "dataType": "forecast",
+    "label": "NOAA forecast data",
+    "status": "available",
+    "fetchedAt": "2026-10-18T20:00:01Z",
+    "measurements": [
+      {
+        "metric": "pm2_5", "value": 6.85, "unit": "µg/m³",
+        "validFrom": "2026-10-18T20:00:00Z",
+        "validTo": "2026-10-18T21:00:00Z",
+        "issuedAt": "2026-10-18T12:00:00Z",
+        "sourceUrl": "https://mapservices.weather.noaa.gov/raster/rest/services/air_quality/ndgd_apm25_hr01/ImageServer/identify"
+      },
+      {
+        "metric": "ozone", "value": 45, "unit": "ppb",
+        "validFrom": "2026-10-18T20:00:00Z",
+        "validTo": "2026-10-18T21:00:00Z",
+        "issuedAt": "2026-10-18T12:00:00Z",
+        "sourceUrl": "https://mapservices.weather.noaa.gov/raster/rest/services/air_quality/ndgd_ozone_1hr_avg_time/ImageServer/identify"
+      }
+    ]
+  }
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `provider`, `dataType`, `label` | Constants `NOAA/NWS`, `forecast`, `NOAA forecast data` |
+| `status` | `available`: both pollutants; `partial`: only one; `unavailable`: no usable forecasts |
+| `fetchedAt` | UTC time the worker attempted the provider lookup |
+| `measurements[]` | Finite nonnegative concentrations: `pm2_5` in `µg/m³`, `ozone` in `ppb` |
+| `validFrom`, `validTo` | UTC forecast interval selected for the phone's original `measuredAt`; `[validFrom, validTo)` |
+| `issuedAt` | UTC issuance time of the model forecast, distinct from its validity and fetch time |
+| `sourceUrl` | Official NOAA ImageServer identify endpoint for attribution; no phone coordinates in this URL |
+| `error` | Optional generic explanation when data is incomplete/unavailable |
+
+Show a separate card titled **“NOAA forecast data”**, with the pollutant, exact
+unit, forecast interval and issuance time. These are regional model forecasts;
+they are not physical sensor observations, a 100 m match, or an instantaneous
+AQI. Do not derive an AQI badge, health score or safe/unsafe claim from them.
+Render this card independently of exposure `status`: `no_match` only describes
+the local `sensors` array and can coexist with available regional air forecasts.
+
+A missing field means an older record; `unavailable` or an empty measurements
+array means a provider timeout, no data, or no applicable forecast interval.
+Never fill missing values with zero or replace historical fixes with today's
+forecast. NOAA enriches air only; it does not supply water measurements.
+The worker fetches and persists the complete snapshot before delivering the
+exposure. Retries reuse that snapshot; live and history return the same stored
+values. The location persistence ACK still precedes asynchronous enrichment.
 
 ### Matching and privacy rules
 

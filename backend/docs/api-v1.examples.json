@@ -2,7 +2,7 @@
   "LocationUpdate": {
     "schemaVersion": 1,
     "eventId": "d4d01f91-5619-4693-97c5-ff9025daa1d4",
-    "measuredAt": "2026-10-18T19:00:00Z",
+    "measuredAt": "2026-10-18T20:00:00Z",
     "latitude": 25.7617,
     "longitude": -80.1918,
     "accuracyM": 12.5
@@ -10,16 +10,16 @@
   "LocationAck": {
     "ok": true,
     "eventId": "d4d01f91-5619-4693-97c5-ff9025daa1d4",
-    "receivedAt": "2026-10-18T19:00:00.120Z",
+    "receivedAt": "2026-10-18T20:00:00.120Z",
     "duplicate": false
   },
   "Exposure": {
     "schemaVersion": 1,
     "exposureId": "a22da6f0-8809-4b35-ae35-cff645bdfad5",
     "locationEventId": "d4d01f91-5619-4693-97c5-ff9025daa1d4",
-    "measuredAt": "2026-10-18T19:00:00Z",
-    "receivedAt": "2026-10-18T19:00:00.120Z",
-    "processedAt": "2026-10-18T19:00:00.200Z",
+    "measuredAt": "2026-10-18T20:00:00Z",
+    "receivedAt": "2026-10-18T20:00:00.120Z",
+    "processedAt": "2026-10-18T20:00:01.200Z",
     "position": {
       "latitude": 25.7617,
       "longitude": -80.1918,
@@ -38,9 +38,9 @@
           "latitude": 25.76175,
           "longitude": -80.19186
         },
-        "measuredAt": "2026-10-18T18:59:57Z",
-        "receivedAt": "2026-10-18T18:59:57.100Z",
-        "observedAt": "2026-10-18T18:59:57Z",
+        "measuredAt": "2026-10-18T19:59:57Z",
+        "receivedAt": "2026-10-18T19:59:57.100Z",
+        "observedAt": "2026-10-18T19:59:57Z",
         "source": "simulated",
         "measurements": [
           {
@@ -48,7 +48,7 @@
             "medium": "water",
             "metric": "temperature",
             "value": 22.4,
-            "unit": "Ã‚Â°C",
+            "unit": "°C",
             "quality": "ok",
             "rollingMean": 22.1,
             "sampleCount": 12,
@@ -59,7 +59,7 @@
             "medium": "air",
             "metric": "pm2_5",
             "value": 12.3,
-            "unit": "Ã‚Âµg/mÃ‚Â³",
+            "unit": "µg/m³",
             "quality": "uncalibrated",
             "rollingMean": 11.8,
             "sampleCount": 12,
@@ -84,9 +84,9 @@
         "schemaVersion": 1,
         "exposureId": "a22da6f0-8809-4b35-ae35-cff645bdfad5",
         "locationEventId": "d4d01f91-5619-4693-97c5-ff9025daa1d4",
-        "measuredAt": "2026-10-18T19:00:00Z",
-        "receivedAt": "2026-10-18T19:00:00.120Z",
-        "processedAt": "2026-10-18T19:00:00.200Z",
+        "measuredAt": "2026-10-18T20:00:00Z",
+        "receivedAt": "2026-10-18T20:00:00.120Z",
+        "processedAt": "2026-10-18T20:00:01.200Z",
         "position": {
           "latitude": 25.7617,
           "longitude": -80.1918,
@@ -105,9 +105,9 @@
               "latitude": 25.76175,
               "longitude": -80.19186
             },
-            "measuredAt": "2026-10-18T18:59:57Z",
-            "receivedAt": "2026-10-18T18:59:57.100Z",
-            "observedAt": "2026-10-18T18:59:57Z",
+            "measuredAt": "2026-10-18T19:59:57Z",
+            "receivedAt": "2026-10-18T19:59:57.100Z",
+            "observedAt": "2026-10-18T19:59:57Z",
             "source": "simulated",
             "measurements": [
               {
@@ -115,7 +115,7 @@
                 "medium": "water",
                 "metric": "temperature",
                 "value": 22.4,
-                "unit": "Ã‚Â°C",
+                "unit": "°C",
                 "quality": "ok",
                 "rollingMean": 22.1,
                 "sampleCount": 12,
@@ -126,7 +126,7 @@
                 "medium": "air",
                 "metric": "pm2_5",
                 "value": 12.3,
-                "unit": "Ã‚Âµg/mÃ‚Â³",
+                "unit": "µg/m³",
                 "quality": "uncalibrated",
                 "rollingMean": 11.8,
                 "sampleCount": 12,
@@ -151,5 +151,88 @@
   },
   "ConnectionAuth": {
     "token": "0"
+  },
+  "ExposureWithRegionalAir": {
+    "schemaVersion": 1,
+    "exposureId": "a22da6f0-8809-4b35-ae35-cff645bdfad5",
+    "locationEventId": "d4d01f91-5619-4693-97c5-ff9025daa1d4",
+    "measuredAt": "2026-10-18T20:00:00Z",
+    "receivedAt": "2026-10-18T20:00:00.120Z",
+    "processedAt": "2026-10-18T20:00:01.200Z",
+    "position": {
+      "latitude": 25.7617,
+      "longitude": -80.1918,
+      "accuracyM": 12.5
+    },
+    "status": "matched",
+    "matchRadiusM": 100,
+    "maxSensorAgeSeconds": 300,
+    "sensors": [
+      {
+        "deviceId": "pico-01",
+        "locationId": "demo-school",
+        "visibility": "public",
+        "distanceM": 8.3,
+        "position": {
+          "latitude": 25.76175,
+          "longitude": -80.19186
+        },
+        "measuredAt": "2026-10-18T19:59:57Z",
+        "receivedAt": "2026-10-18T19:59:57.100Z",
+        "observedAt": "2026-10-18T19:59:57Z",
+        "source": "simulated",
+        "measurements": [
+          {
+            "sensorId": "water-1",
+            "medium": "water",
+            "metric": "temperature",
+            "value": 22.4,
+            "unit": "°C",
+            "quality": "ok",
+            "rollingMean": 22.1,
+            "sampleCount": 12,
+            "windowSeconds": 60
+          },
+          {
+            "sensorId": "air-1",
+            "medium": "air",
+            "metric": "pm2_5",
+            "value": 12.3,
+            "unit": "µg/m³",
+            "quality": "uncalibrated",
+            "rollingMean": 11.8,
+            "sampleCount": 12,
+            "windowSeconds": 60
+          }
+        ]
+      }
+    ],
+    "regionalAir": {
+      "provider": "NOAA/NWS",
+      "dataType": "forecast",
+      "label": "NOAA forecast data",
+      "status": "available",
+      "fetchedAt": "2026-10-18T20:00:01Z",
+      "measurements": [
+        {
+          "metric": "pm2_5",
+          "value": 6.85,
+          "unit": "µg/m³",
+          "validFrom": "2026-10-18T20:00:00Z",
+          "validTo": "2026-10-18T21:00:00Z",
+          "issuedAt": "2026-10-18T12:00:00Z",
+          "sourceUrl": "https://mapservices.weather.noaa.gov/raster/rest/services/air_quality/ndgd_apm25_hr01/ImageServer/identify"
+        },
+        {
+          "metric": "ozone",
+          "value": 45,
+          "unit": "ppb",
+          "validFrom": "2026-10-18T20:00:00Z",
+          "validTo": "2026-10-18T21:00:00Z",
+          "issuedAt": "2026-10-18T12:00:00Z",
+          "sourceUrl": "https://mapservices.weather.noaa.gov/raster/rest/services/air_quality/ndgd_ozone_1hr_avg_time/ImageServer/identify"
+        }
+      ]
+    }
   }
 }

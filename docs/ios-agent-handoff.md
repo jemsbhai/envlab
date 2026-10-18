@@ -62,6 +62,52 @@ The Swift starter has not been compiled in the team's Xcode project. Keep its
 manager alive, register listeners before connecting, and confirm compatibility
 with the project's installed `socket.io-client-swift` version.
 
+## NOAA air forecast extension: iOS changes now
+
+**Live now, publicly verified on 18 October 2026:** a GPS fix with token `"0"`
+returned PM2.5 and ozone forecasts, with the same snapshot returned in history.
+Keep the same Socket.IO connection and events. Decode optional
+`Exposure.regionalAir` on both `exposure:update` and `exposure:history.items`:
+
+```text
+regionalAir?: {
+  provider: "NOAA/NWS", dataType: "forecast", label: "NOAA forecast data",
+  status: "available" | "partial" | "unavailable", fetchedAt: ISO8601,
+  measurements: [{
+    metric: "pm2_5" | "ozone", value: number, unit: "µg/m³" | "ppb",
+    validFrom: ISO8601, validTo: ISO8601, issuedAt: ISO8601,
+    sourceUrl: official NOAA URL
+  }], error?: string
+}
+```
+
+Render a separate **“NOAA forecast data”** card: PM2.5 in `µg/m³`, ozone in
+`ppb`, forecast interval and issuance time. Keep local air/water sensor cards
+and their provenance unchanged. `status: "no_match"` only means no eligible
+nearby physical sensors; show available NOAA forecasts anyway. These are
+regional model forecasts, not physical measurements, a 100 m match, or AQI.
+Do not calculate a health score or AQI badge from these concentrations.
+
+`available` means both pollutants, `partial` one, `unavailable` none. Missing
+`regionalAir` is normal for older history. Show missing/unavailable data as a
+gap, never zero. The phone's original timestamp selects the forecast interval;
+both live and history carry the same persisted snapshot. No new app request or
+provider key is needed. [Optional Swift decoding types](../backend/examples/DewinRegionalAir.swift)
+illustrate adding the field without replacing the app's existing exposure model.
+Use the synthetic `ExposureWithRegionalAir` fixture for decoding tests. The
+canonical `Exposure` and local mock omit NOAA data; the mock does not call NOAA.
+
+Copy/paste for the iOS agent:
+
+> Keep connecting to https://dewin-api.cbnsndwch.dev with Socket.IO auth
+> {"token":"0"}. Add optional regionalAir to exposure decoding for live events
+> and history. Read backend/docs/api-v1.md and its JSON Schema for the exact
+> shape. Display a separate card labeled “NOAA forecast data”: pm2_5 in µg/m³
+> and ozone in ppb, with validFrom/validTo and issuedAt. Preserve sensors[] and
+> render NOAA independently of matched/no_match. Treat absent/partial/unavailable
+> data explicitly; never substitute zero, derive AQI, or call it a local sensor.
+> Upsert the stored exposure normally; do not fetch NOAA from the phone.
+
 ## Run the mock
 
 Python 3.11+ on the development computer:
