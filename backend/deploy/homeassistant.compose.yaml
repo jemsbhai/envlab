@@ -1,0 +1,26 @@
+# Imported into Portainer as the water-homeassistant stack.
+# WATER_PROJECT_DIR is the absolute project path on the Docker host.
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:2026.10.2
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: America/New_York
+    volumes:
+      - ha_config:/config
+      - ${WATER_PROJECT_DIR:?Set the Pi project directory}/deploy/homeassistant/configuration.yaml:/config/configuration.yaml:ro
+    stop_grace_period: 60s
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8123/manifest.json', timeout=5).close()"]
+      interval: 15s
+      timeout: 10s
+      start_period: 120s
+      retries: 8
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+
+volumes:
+  ha_config:

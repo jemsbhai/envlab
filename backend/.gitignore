@@ -1,0 +1,12 @@
+.env
+.venv/
+.tools/
+.runtime/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+data/
+!deploy/data/
+!deploy/data/.gitkeep

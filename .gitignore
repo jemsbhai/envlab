@@ -1,0 +1,44 @@
+# secrets and per-node config
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.runtime/
+.tools/
+*.sqlite3
+*.sqlite3-*
+
+# runtime data that lives on the Pi, never in git
+*.jsonl
+templates/
+out/
+models/
+*.onnx
+cards.json
+sessions.json
+.cloudsync_state.json
+.python
+fk
+
+# python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# arduino build output
+build/
+*.bin
+*.elf
+*.hex
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

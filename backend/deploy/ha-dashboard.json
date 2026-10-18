@@ -1,0 +1,62 @@
+{
+  "title": "Dewin telemetry",
+  "views": [
+    {
+      "title": "Data pipes",
+      "path": "pipes",
+      "cards": [
+        {
+          "type": "entities",
+          "title": "sim-pico-01 · SIMULATED",
+          "entities": [
+            "sensor.env_sim_pico_01_water_1_temperature_value_b234ba98da",
+            "sensor.env_sim_pico_01_water_1_temperature_mean_a942fc6fa5"
+          ]
+        },
+        {
+          "type": "history-graph",
+          "title": "Temperature and rolling mean",
+          "hours_to_show": 1,
+          "entities": [
+            "sensor.env_sim_pico_01_water_1_temperature_value_b234ba98da",
+            "sensor.env_sim_pico_01_water_1_temperature_mean_a942fc6fa5"
+          ]
+        },
+        {
+          "type": "entities",
+          "title": "sim-pico-02 · SIMULATED",
+          "entities": [
+            "sensor.env_sim_pico_02_water_1_temperature_value_e5db020051",
+            "sensor.env_sim_pico_02_water_1_temperature_mean_bff3a83771"
+          ]
+        },
+        {
+          "type": "history-graph",
+          "title": "Temperature and rolling mean",
+          "hours_to_show": 1,
+          "entities": [
+            "sensor.env_sim_pico_02_water_1_temperature_value_e5db020051",
+            "sensor.env_sim_pico_02_water_1_temperature_mean_bff3a83771"
+          ]
+        },
+        {
+          "type": "entities",
+          "title": "sim-pico-03 · SIMULATED",
+          "entities": [
+            "sensor.env_sim_pico_03_water_1_temperature_value_81bba87ef4",
+            "sensor.env_sim_pico_03_water_1_temperature_mean_4dea6d6bca"
+          ]
+        },
+        {
+          "type": "history-graph",
+          "title": "Temperature and rolling mean",
+          "hours_to_show": 1,
+          "entities": [
+            "sensor.env_sim_pico_03_water_1_temperature_value_81bba87ef4",
+            "sensor.env_sim_pico_03_water_1_temperature_mean_4dea6d6bca"
+          ]
+        }
+      ]
+    }
+  ]
+}
