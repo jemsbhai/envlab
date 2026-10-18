@@ -6,7 +6,11 @@ import time
 import machine
 import ubinascii
 import network
-from umqtt.simple import MQTTClient
+
+# umqtt.simple is imported lazily in connect() -- NOT at module load. A stock MicroPython flash
+# doesn't ship umqtt, so a module-level import here would raise on import of this module, which
+# main.py imports unconditionally -- taking down WiFi and the web server too. Lazy import means a
+# missing library only disables MQTT.
 
 try:
     import mqtt as mqtt_config
@@ -67,6 +71,13 @@ class MQTTManager:
     def connect(self):
         self.last_connect_time = time.time()
         self.disconnect()
+        # Import the MQTT library lazily so a missing umqtt only disables MQTT instead of
+        # crashing the whole application at import time.
+        try:
+            from umqtt.simple import MQTTClient
+        except ImportError:
+            print("MQTT disabled: umqtt not installed (mip.install('umqtt.simple'))")
+            return False
         try:
             user = getattr(mqtt_config, "MQTT_USER", "")
             password = getattr(mqtt_config, "MQTT_PASSWORD", "")
