@@ -1,4 +1,10 @@
-# envlab
+# Kiosk prototype (card + face check-in)
+
+Status: the kiosk now feeds the Dewin pipeline as a position source for checked-in people; see
+[kiosk-presence-integration.md](kiosk-presence-integration.md). What follows is the original standalone
+design. The JSONL and Supabase parts remain the kiosk's own visit record and local demo path; they are not
+the sensor-to-app transport, and `sensors.jsonl` is no longer a contract sensor firmware writes to. Sensor
+nodes publish MQTT per `backend/docs/pico-contract.md`.
 
 Personal exposure record for water and air quality. A venue (home, office, restaurant) runs sensor nodes
 and a check-in kiosk. A person taps their card and shows their face; while they are checked in, every

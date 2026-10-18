@@ -21,6 +21,7 @@ models/
 *.onnx
 cards.json
 sessions.json
+dewin_tokens.json
 .cloudsync_state.json
 .python
 fk
