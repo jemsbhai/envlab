@@ -46,6 +46,8 @@ class Gateway:
         self.sio.on("exposure:history", self.history)
         self.app.router.add_get("/healthz", self.health)
         self.app.router.add_get("/", self.info)
+        self.app.router.add_get("/architecture", self.architecture)
+        self.app.router.add_get("/architecture/", self.architecture)
         self.app.router.add_get("/docs/{filename}", self.docs)
         self.app.on_startup.append(self.start)
         self.app.on_cleanup.append(self.close)
@@ -237,7 +239,11 @@ class Gateway:
         return web.json_response({"service": "Dewin environmental API", "mode": "live", "schemaVersion": 1,
             "socketioPath": "/socket.io/", "namespace": "/", "authentication": "Socket.IO connect payload token",
             "events": ["location:update", "exposure:update", "exposure:history"], "health": "/healthz",
-            "contract": "/docs/api-v1.md"})
+            "contract": "/docs/api-v1.md", "architecture": "/architecture/"})
+
+    async def architecture(self, request):
+        return web.FileResponse(Path("/app/docs/architecture/index.html"),
+                                headers={"Cache-Control": "no-cache"})
 
     async def docs(self, request):
         filename = request.match_info["filename"]

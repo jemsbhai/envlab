@@ -35,6 +35,9 @@ stopped; its saved `water-homeassistant_ha_config` volume remains. Portainer
 inspects the externally managed backend, but on-disk Compose files are authoritative.
 The gateway serves canonical API documents from the read-only `./docs:/app/docs`
 mount, so documentation updates do not require an application-image rebuild.
+The static interactive explainer is served at `/architecture/` from
+`docs/architecture/index.html`. Gateway image `water-monitor:gateway-demo` adds
+that route; the existing NEX worker may continue on `water-monitor:gateway`.
 The old `dewin-events.cbnsndwch.dev` NATS ingress was removed at the API cutover;
 it is not an app endpoint.
 

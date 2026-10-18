@@ -8,7 +8,7 @@ from pathlib import Path
 import time
 import uuid
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 
 SCHEMA = json.loads(Path(__file__).with_name("api-v1.schema.json").read_text(encoding="utf-8"))
 
@@ -16,7 +16,8 @@ SCHEMA = json.loads(Path(__file__).with_name("api-v1.schema.json").read_text(enc
 def validate(name, data):
     if len(json.dumps(data, allow_nan=False).encode()) > 16384:
         raise ValueError("Request exceeds 16 KiB")
-    Draft202012Validator({"$ref": "#/$defs/"+name, "$defs": SCHEMA["$defs"]}).validate(data)
+    Draft202012Validator({"$ref": "#/$defs/"+name, "$defs": SCHEMA["$defs"]},
+                        format_checker=FormatChecker()).validate(data)
 
 
 def parse_date(value):

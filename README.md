@@ -13,6 +13,7 @@ authorized readings to each user's timeline.
 | App API payloads | [Socket.IO API v1](backend/docs/api-v1.md) |
 | MQTT payloads | [Sensor MQTT v1](backend/docs/pico-contract.md) |
 | Backend / Pi operations | [Backend README](backend/README.md), [deployed Pi](backend/docs/deployment-zerod.md) |
+| Interactive architecture | [Live explainer](https://dewin-api.cbnsndwch.dev/architecture/), [offline HTML](backend/docs/architecture/index.html) |
 
 `AGENTS.md` directs coding agents to the same contracts. All examples/mock data
 are synthetic. Obtain actual credentials privately; never commit them.
