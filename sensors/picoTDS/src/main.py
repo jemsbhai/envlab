@@ -22,10 +22,6 @@ try:
 except ImportError:
     tds_config = None
 try:
-    import mqtt as mqtt_config
-except ImportError:
-    mqtt_config = None
-try:
     import web as web_config
 except ImportError:
     web_config = None
@@ -60,18 +56,15 @@ class PicoTDS:
             return False
 
         # Keep the manager after network failures so reconnects remain possible.
-        if mqtt_config:
-            try:
-                self.mqtt = MQTTManager()
-                if self.wifi.is_connected() and self.mqtt.connect():
-                    print("MQTT initialized")
-                else:
-                    print("MQTT pending; will retry when WiFi/broker is available")
-            except Exception as e:
-                print(f"Warning: MQTT initialization failed: {e}")
-                self.mqtt = None
-        else:
-            print("MQTT skipped: upload a configured private mqtt.py")
+        try:
+            self.mqtt = MQTTManager()
+            if self.wifi.is_connected() and self.mqtt.connect():
+                print("MQTT initialized")
+            else:
+                print("MQTT pending; will retry when WiFi/broker is available")
+        except Exception as e:
+            print(f"Warning: MQTT initialization failed: {e}")
+            self.mqtt = None
 
         # Initialize Web Server (only if WiFi is connected)
         if self.wifi and self.wifi.is_connected() and web_config and web_config.WEB_SERVER_ENABLED:

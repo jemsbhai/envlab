@@ -11,7 +11,8 @@ from umqtt.simple import MQTTClient
 try:
     import mqtt as mqtt_config
 except ImportError:
-    raise ImportError("Create config/mqtt.py from mqtt.py.example and upload it as /mqtt.py")
+    class mqtt_config:
+        pass  # Anonymous one-board demo defaults; mqtt.py is optional.
 
 
 def valid_id(value):
@@ -37,11 +38,9 @@ class MQTTManager:
         self.latitude = getattr(mqtt_config, "MQTT_LATITUDE", 25.7617)
         self.longitude = getattr(mqtt_config, "MQTT_LONGITUDE", -80.1918)
         if not valid_id(self.location_id):
-            raise ValueError("Set MQTT_LOCATION_ID in private mqtt.py (lowercase ID, max 48 characters)")
+            raise ValueError("Set MQTT_LOCATION_ID in mqtt.py (lowercase ID, max 48 characters)")
         if not finite_number(self.latitude, -90, 90) or not finite_number(self.longitude, -180, 180):
             raise ValueError("Set MQTT_LATITUDE and MQTT_LONGITUDE to this sensor's actual deployment coordinates")
-        if not getattr(mqtt_config, "MQTT_PASSWORD", "") or mqtt_config.MQTT_PASSWORD == "GET_PRIVATELY_FROM_SERGE":
-            raise ValueError("Set the private sensor MQTT password in mqtt.py")
         self.topic = "env/v1/" + self.device_id + "/telemetry"
         self.boot_id = ubinascii.hexlify(os.urandom(8)).decode()
         self.seq = 0
@@ -69,12 +68,14 @@ class MQTTManager:
         self.last_connect_time = time.time()
         self.disconnect()
         try:
+            user = getattr(mqtt_config, "MQTT_USER", "")
+            password = getattr(mqtt_config, "MQTT_PASSWORD", "")
             self.client = MQTTClient(
                 client_id=self.device_id.encode(),
                 server=getattr(mqtt_config, "MQTT_BROKER", "10.104.0.82"),
                 port=getattr(mqtt_config, "MQTT_PORT", 1883),
-                user=getattr(mqtt_config, "MQTT_USER", "sensor").encode(),
-                password=mqtt_config.MQTT_PASSWORD.encode(),
+                user=user.encode() if user else None,
+                password=password.encode() if user and password else None,
                 keepalive=getattr(mqtt_config, "MQTT_KEEPALIVE", 60),
             )
             # No status/LWT, subscriptions, HA discovery or broker scanning: the

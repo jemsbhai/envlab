@@ -1,9 +1,9 @@
 # Copy to config/mqtt.py ONLY if that private file does not already exist.
-# Existing private configs need the new deployment fields added manually.
+# Optional config: built-in defaults already run this anonymous one-board demo.
 MQTT_BROKER = "10.104.0.82"
 MQTT_PORT = 1883
-MQTT_USER = "sensor"
-MQTT_PASSWORD = "GET_PRIVATELY_FROM_SERGE"  # Never commit the real password.
+MQTT_USER = ""      # No login needed for the LAN demo.
+MQTT_PASSWORD = ""  # Existing optional credentials are still supported.
 
 # Ready one-board PUBLIC demo identity, enrolled by Serge. Change this for a
 # second board and ask Serge to enroll it. None selects a stable MAC-derived ID.

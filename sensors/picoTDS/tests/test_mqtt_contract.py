@@ -48,7 +48,7 @@ class MQTTContractTests(unittest.TestCase):
         FakeClient.fail_connect = FakeClient.fail_publish = False
         FakeClient.attempts = []
         self.clock = 100
-        self.config = SimpleNamespace(MQTT_PASSWORD="synthetic-test-password")
+        self.config = SimpleNamespace()
         wlan = SimpleNamespace(active=lambda value: None, config=lambda key: bytes.fromhex("aabbccddeeff"))
         adc = SimpleNamespace(read_u16=lambda: 1000)
         self.modules = {
@@ -84,8 +84,26 @@ class MQTTContractTests(unittest.TestCase):
         self.assertEqual(packet["readings"], [{"sensor_id": "tds-1", "medium": "water", "metric": "tds",
                                               "value": 123.4, "unit": "ppm", "quality": "uncalibrated"}])
         self.assertEqual(manager.client.settings["server"], "10.104.0.82")
-        self.assertEqual(manager.client.settings["user"], b"sensor")
+        self.assertIsNone(manager.client.settings["user"])
+        self.assertIsNone(manager.client.settings["password"])
         self.assertEqual(len(FakeClient.attempts), 1)  # No status, HA or LWT publication.
+
+    def test_optional_existing_credentials_remain_supported(self):
+        self.config.MQTT_USER = "sensor"
+        self.config.MQTT_PASSWORD = "synthetic-test-password"
+        manager = self.mqtt.MQTTManager()
+        self.assertTrue(manager.connect())
+        self.assertEqual(manager.client.settings["user"], b"sensor")
+        self.assertEqual(manager.client.settings["password"], b"synthetic-test-password")
+
+    def test_missing_mqtt_config_uses_anonymous_demo_defaults(self):
+        with patch.dict(sys.modules, {"mqtt": None}):
+            module = load("firmware_mqtt_defaults", "mqtt_client.py")
+        manager = module.MQTTManager()
+        self.assertEqual(manager.device_id, "pico-water-01")
+        self.assertTrue(manager.connect())
+        self.assertIsNone(manager.client.settings["user"])
+        self.assertIsNone(manager.client.settings["password"])
 
     def test_lost_puback_reuses_identical_packet_after_reconnect(self):
         manager = self.mqtt.MQTTManager()

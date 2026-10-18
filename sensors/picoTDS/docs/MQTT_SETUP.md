@@ -6,21 +6,21 @@ Assistant, broker discovery, status topics and Last Will messages are disabled.
 | Setting | Value |
 | --- | --- |
 | Broker | `10.104.0.82:1883`, on the event LAN |
-| Username | `sensor` |
-| Password | Get `SENSOR_PASSWORD` privately from Serge |
+| Username/password | None required for the LAN demo; leave both empty |
 | Topic | `env/v1/<device_id>/telemetry` |
 | MQTT | 3.1.1, QoS 1, retain false, every five seconds |
 | NATS mapping | `env.v1.<device_id>.telemetry` → stream `ENV_RAW` |
 
-Copy `config/mqtt.py.example` to `config/mqtt.py` **only if the private file does
-not already exist**. For an existing private file, retain its secrets and add
-the new settings from the example. Set:
+No private MQTT config or credential download is needed. Built-in defaults and
+`config/mqtt.py.example` run the one-board demo. For customization, copy the
+example to `config/mqtt.py` only if that file does not already exist; preserve
+existing local settings. Anonymous configuration:
 
 ```python
 MQTT_BROKER = "10.104.0.82"
 MQTT_PORT = 1883
-MQTT_USER = "sensor"
-MQTT_PASSWORD = "GET_PRIVATELY_FROM_SERGE"  # Replace locally; never commit.
+MQTT_USER = ""
+MQTT_PASSWORD = ""
 MQTT_DEVICE_ID = "pico-water-01"  # Public one-board demo; change for a second board.
 MQTT_LOCATION_ID = "demo-venue"
 MQTT_LATITUDE = 25.7617   # DEMO FIXTURE, shared with phone demo mode.
@@ -34,7 +34,8 @@ the configured coordinates are an explicit demo fixture shared with phone demo
 mode; they are not Pico-measured GPS. Legacy configs missing these new fields
 also use this one-board fixture. Change identity for any second board; for real
 phone GPS, configure actual deployment coordinates. The firmware refuses an
-invalid coordinate or placeholder password. `MQTT_DEVICE_ID=None` instead
+invalid coordinate. Existing optional MQTT credentials remain supported, but
+are not required. `MQTT_DEVICE_ID=None` instead
 derives `picotds_<last six lowercase Wi-Fi MAC hex digits>`.
 IDs use lowercase letters/digits/`_`/`-`, start with a letter/digit, and have at
 most 48 characters. Boot logs print identity, topic and configured coordinates.
@@ -49,7 +50,7 @@ The single packet has the canonical v1 envelope and `readings[]`:
 ```json
 {
   "schema_version": 1,
-  "device_id": "picotds_a1b2c3",
+  "device_id": "pico-water-01",
   "location_id": "demo-venue",
   "position": {"latitude": 25.7617, "longitude": -80.1918},
   "boot_id": "b7ac25e19f04d832",
@@ -80,10 +81,10 @@ reconnect without discarding the manager.
 Upload using [Quick start](QUICKSTART.md). For acceptance:
 
 1. Observe `MQTT connected` and `MQTT PUBACK` in the serial console. A failure
-   never reports PUBACK success; no password is logged.
+   never reports PUBACK success; optional passwords are never logged.
 2. Ask Serge to confirm the device's packet in `ENV_RAW` and enroll it.
 3. Send a fresh phone fix within 100 meters of the configured sensor, after its
-   latest packet and within 300 seconds. An authorized user should receive an
+   latest packet and within 300 seconds. The phone should receive an
    `exposure:update` containing this device, `source: "sensor"`, `metric: "tds"`
    and its value, then recover it using `exposure:history`.
 4. Interrupt/reconnect Wi-Fi or the broker and verify telemetry resumes.

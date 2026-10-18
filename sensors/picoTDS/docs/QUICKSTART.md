@@ -2,7 +2,7 @@
 
 The firmware now publishes the Dewin v1 MQTT envelope. The real TDS reading is
 marked uncalibrated until calibration is confirmed. Missing temperature stays
-unavailable. No HA configuration is required.
+unavailable. The LAN demo needs no MQTT username/password or private MQTT config.
 
 1. Pull the shared repo, then open the firmware folder:
 
@@ -16,28 +16,27 @@ unavailable. No HA configuration is required.
    are in [WIRING.md](WIRING.md). Close Thonny and other serial monitors before
    using `mpremote`. List USB boards with `mpremote connect list`.
 
-3. Preserve existing private configs. If needed, create each missing config from
-   its example; never overwrite an existing file containing your secrets:
+3. Preserve your Wi-Fi config. Create it only if missing:
 
    ```sh
    test -f config/wifi.py || cp config/wifi.py.example config/wifi.py
-   test -f config/mqtt.py || cp config/mqtt.py.example config/mqtt.py
    ```
 
-   Configure Wi-Fi SSID/password in `config/wifi.py`. Set the private MQTT password
-   in `config/mqtt.py`, or copy Serge's privately supplied ready-to-flash MQTT
-   config there. Both files are ignored by Git. If credentials exist only on the
-   board, download/backup them before upload using `mpremote ... fs cp :/wifi.py
-   config/wifi.py` and the equivalent for `mqtt.py`; do not overwrite existing
-   local copies.
+   Configure Wi-Fi SSID/password in `config/wifi.py`. No MQTT credentials are
+   required. `config/mqtt.py` is optional for device/coordinate overrides; the
+   upload script uses `mqtt.py.example` when it is absent. Existing local configs
+   are preserved and optional existing MQTT credentials still work. If Wi-Fi or
+   custom MQTT config exists only on the board, download/backup it before upload
+   using `mpremote ... fs cp :/wifi.py config/wifi.py` (and `mqtt.py` as needed);
+   do not overwrite existing local copies.
 
-4. Default demo setup: `10.104.0.82:1883`, user `sensor`, device `pico-water-01`,
+4. Default demo setup: `10.104.0.82:1883`, no login, device `pico-water-01`,
    location `demo-venue`, public visibility provisioned by Serge. Coordinates
    `25.7617,-80.1918` are a **demo fixture**, shared with the app's demo mode.
    Readings come from the physical sensor. Change device ID for a second board
    and ask Serge to enroll it; configure actual coordinates for real phone GPS.
-   Existing private configs need the current broker/username and settings from
-   [MQTT setup](MQTT_SETUP.md). Never commit a live password.
+   For old custom configs, use the current broker; empty `MQTT_USER` and
+   `MQTT_PASSWORD` select anonymous mode. See [MQTT setup](MQTT_SETUP.md).
 
 5. Upload and reset (the script installs `umqtt.simple` if missing, validates
    config and prints public `ENROLL` fields):
@@ -52,17 +51,19 @@ unavailable. No HA configuration is required.
 
    ```powershell
    mpremote connect auto mip install umqtt.simple
-   mpremote connect auto fs cp config/wifi.py config/tds_config.py config/mqtt.py config/web.py src/tds_sensor.py src/wifi_connect.py src/mqtt_client.py src/web_server.py src/main.py :/
+   mpremote connect auto fs cp config/wifi.py config/tds_config.py config/web.py src/tds_sensor.py src/wifi_connect.py src/mqtt_client.py src/web_server.py src/main.py :/
+   mpremote connect auto fs cp config/mqtt.py.example :/mqtt.py
    mpremote connect auto reset
    mpremote connect auto repl
    ```
 
-   Thonny users can copy those same files to the board root using their base
-   names, then reset. Do not upload the `.example` names.
+   To use an existing custom MQTT config in PowerShell, substitute `config/mqtt.py`
+   for `config/mqtt.py.example`. Thonny users can copy those same files to the
+   board root, naming the MQTT config `/mqtt.py`, then reset.
 
 6. Observe `MQTT connected` and `MQTT PUBACK: pico-water-01 seq ...` every five
    seconds. Send Serge the printed device/location/coordinates if you changed
-   them. Ask him to confirm `ENV_RAW`; test the authorized app in demo mode or
+   them. Ask him to confirm `ENV_RAW`; test the app in demo mode or
    with a fresh phone fix within 100 meters of the configured sensor. Expect
    `exposure:update` with `source: "sensor"`, water `tds` in `ppm`, then history
    recovery. See [MQTT acceptance checks](MQTT_SETUP.md).
