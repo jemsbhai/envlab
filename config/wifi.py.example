@@ -1,0 +1,14 @@
+# WiFi Configuration for Pico W
+# UPDATE THESE WITH YOUR NETWORK CREDENTIALS
+# Then rename this file to wifi.py
+
+WIFI_SSID = "your_network_name"
+WIFI_PASSWORD = "your_password"
+
+# Optional: Static IP configuration
+# Set USE_STATIC_IP to True and configure values below
+USE_STATIC_IP = False
+STATIC_IP = "192.168.1.100"
+STATIC_SUBNET = "255.255.255.0"
+STATIC_GATEWAY = "192.168.1.1"
+STATIC_DNS = "8.8.8.8"
