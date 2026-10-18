@@ -66,32 +66,36 @@ class WebServer:
         self.last_update_time = time.time()
 
     def handle_request(self):
-        """Handle incoming HTTP requests (non-blocking)"""
+        """Handle all currently-pending HTTP requests (non-blocking).
+
+        The main loop calls this once per read cycle, so draining every queued connection here
+        (instead of a single accept) keeps the server responsive when a browser opens several
+        connections at once (page + favicon + /status)."""
         if not self.listening or not self.server_socket:
             return
 
-        try:
-            # Accept connection with timeout
+        while True:
             try:
                 conn, addr = self.server_socket.accept()
-            except:
-                return  # No connection available
+            except Exception:
+                return  # No more pending connections (accept timed out)
+            self._handle_connection(conn)
 
-            # Set timeout for this connection
-            conn.settimeout(1.0)
+    def _handle_connection(self, conn):
+        """Read one request off an accepted connection and send the response."""
+        conn.settimeout(1.0)
+        try:
+            request = conn.recv(1024).decode('utf-8')
+            if not request:
+                return
 
-            try:
-                # Receive request
-                request = conn.recv(1024).decode('utf-8')
-                if not request:
-                    conn.close()
-                    return
-
-                # Parse request
-                first_line = request.split('\n')[0]
-                method, path, _ = first_line.split(' ')
-
-                # Route the request
+            # Parse request line defensively -- a partial/blank read won't have 3 tokens.
+            first_line = request.split('\n', 1)[0]
+            parts = first_line.split(' ')
+            if len(parts) < 2:
+                response = self._serve_404()
+            else:
+                path = parts[1]
                 if path == '/' or path == '/index.html':
                     response = self._serve_html()
                 elif path == '/status':
@@ -101,16 +105,17 @@ class WebServer:
                 else:
                     response = self._serve_404()
 
-                # Send response
-                conn.send(response)
-                conn.close()
-
-            except Exception as e:
-                print(f"Error handling request: {e}")
-                conn.close()
+            # sendall(), not send(): MicroPython's send() may write fewer bytes than given,
+            # truncating larger pages.
+            conn.sendall(response)
 
         except Exception as e:
-            pass  # Ignore timeout errors
+            print(f"Error handling request: {e}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def _serve_html(self):
         """Serve HTML status page"""
@@ -152,13 +157,17 @@ class WebServer:
     def _create_response(self, content_type, content, status_code=200):
         """Create HTTP response"""
         status_text = "OK" if status_code == 200 else "Not Found"
-        response = f"HTTP/1.1 {status_code} {status_text}\r\n"
-        response += f"Content-Type: {content_type}\r\n"
-        response += f"Content-Length: {len(content)}\r\n"
-        response += "Connection: close\r\n"
-        response += "\r\n"
-        response += content
-        return response.encode('utf-8')
+        # Content-Length must be the BYTE length. The page contains multi-byte UTF-8 (e.g. the
+        # "°C" unit), so len(content) (character count) would understate it and truncate the body.
+        body = content.encode('utf-8')
+        header = (
+            f"HTTP/1.1 {status_code} {status_text}\r\n"
+            f"Content-Type: {content_type}\r\n"
+            f"Content-Length: {len(body)}\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+        )
+        return header.encode('utf-8') + body
 
     def _generate_html(self):
         """Generate HTML status page"""

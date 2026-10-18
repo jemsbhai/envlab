@@ -49,8 +49,24 @@ class WiFiManager:
 
         print(f"Connecting to WiFi: {ssid}")
 
+        # Set the regulatory domain before bringing the radio up. Leaving it unset can cause
+        # connection/channel issues on the CYW43 radio.
+        try:
+            import rp2
+            rp2.country(getattr(wifi_config, "WIFI_COUNTRY", "US"))
+        except Exception:
+            pass
+
         # Activate WiFi
         self.wlan.active(True)
+
+        # Disable WiFi power-save. The CYW43 defaults to aggressive power-saving, which drops and
+        # delays inbound packets -- that makes the web server and MQTT appear dead even while WiFi
+        # reports "connected". A device acting as a server must turn this off.
+        try:
+            self.wlan.config(pm=0xa11140)  # WLAN.PM_NONE
+        except Exception:
+            pass
 
         # Configure static IP if enabled
         if wifi_config.USE_STATIC_IP:
@@ -69,7 +85,11 @@ class WiFiManager:
         start_time = time.time()
         while not self.wlan.isconnected():
             if time.time() - start_time > timeout:
-                print("WiFi connection timeout")
+                try:
+                    status = self.wlan.status()
+                except Exception:
+                    status = "unknown"
+                print(f"\nWiFi connection timeout (status={status})")
                 return False
             time.sleep(0.5)
             print(".", end="")
