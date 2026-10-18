@@ -1,11 +1,11 @@
 {
   "name": "water-processor",
-  "description": "Persist and process Pico telemetry; publish Home Assistant discovery and state",
+  "description": "Join persisted GPS and MQTT sensor history; persist user-scoped exposures",
   "type": "native",
   "lifecycle": "service",
   "start_request": {
     "uri": "file:///usr/local/bin/python3.13",
-    "argv": ["-m", "water_monitor.worker"],
+    "argv": ["-m", "water_monitor.spatial_worker"],
     "environment": {}
   }
 }

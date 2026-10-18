@@ -27,10 +27,14 @@ Phone <-- Socket.IO -- gateway <-- persisted exposure results
 ```
 
 The MQTT broker, JetStream, NEX, and simulator run on the existing Debian Pi at
-`10.104.0.82`. **The new real Socket.IO gateway is pending implementation**;
-use the runnable local mock for iOS integration now. JetStream stores incoming
-messages; application workers perform spatial joins. Private sensor ownership
-is server-controlled. No frontend or sensor needs a native NATS client.
+`10.104.0.82`. The real Socket.IO gateway and NEX spatial worker are deployed
+and verified through the public Cloudflare endpoint. See the
+[Pi operating notes](backend/docs/deployment-zerod.md) for validation details.
+The live API is `https://dewin-api.cbnsndwch.dev`, with a personal token
+provided privately. A local mock is also available. JetStream streams/KV store
+positions, deduplication receipts, and exposure history; application workers
+perform spatial joins. Private sensor ownership is server-controlled. No
+frontend or sensor needs a native NATS client.
 
 The current mobile scope is air/water plus GPS, live enrichment, and history.
 HA is stopped with its data preserved; food tracking is deferred.
@@ -38,7 +42,7 @@ HA is stopped with its data preserved; food tracking is deferred.
 ## Repository layout
 
 ```text
-backend/   NATS/MQTT/NEX setup, contracts, fixtures, Swift starter, local API mock
+backend/   NATS/MQTT/NEX, real Socket.IO gateway, contracts, Swift starter, mock
 docs/      Team/agent handoffs and hardware documentation
 sensors/   Sensor firmware and publishing integrations (teammates)
 pi/        Existing face-check-in kiosk prototype

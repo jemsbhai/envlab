@@ -52,10 +52,12 @@ valid for ingestion, but new firmware must include these fields for the spatial
 API. The backend's schema and acceptance test cover this extension. See the MQTT
 contract's deployment status for the physical-Pi verification.
 
-The real Socket.IO spatial gateway is still pending. Publishing successfully
-does not mean the phone's final matching/history feature is deployed. MQTT
-PUBACK confirms broker receipt; the backend acceptance test separately checks
-validation and durable raw storage.
+The real Socket.IO spatial gateway is deployed and publicly verified; checks
+are recorded in [the Pi notes](../backend/docs/deployment-zerod.md). A node must also
+be registered in the backend's private `.runtime/devices.json` to appear in app
+results. A nearby phone fix must fall after the sensor sample and within the
+100 m/300-second matching bounds. MQTT PUBACK confirms broker receipt; the
+backend acceptance test separately checks validation and durable raw storage.
 
 ## Copy/paste task for the sensor agent
 

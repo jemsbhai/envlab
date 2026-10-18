@@ -98,10 +98,11 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM events").fetchone()[0], 1)
 
     def test_invalid_quality_is_archived_without_publishing(self):
-        self.event["readings"][0]["quality"] = "invalid"
+        for reading in self.event["readings"]:
+            reading["quality"] = "invalid"
         self.ingest(self.event)
         self.assertEqual(self.store.current(), [])
-        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM readings").fetchone()[0], 1)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM readings").fetchone()[0], len(self.event["readings"]))
 
     def test_unit_change_rolls_back_whole_packet(self):
         self.ingest(self.event)
@@ -127,7 +128,7 @@ class PipelineTests(unittest.TestCase):
         self.store.close()
         self.store = Store(str(Path(self.directory.name) / "history.sqlite3"))
         self.assertFalse(self.ingest(self.event))
-        self.assertEqual(len(self.store.current()), 1)
+        self.assertEqual(len(self.store.current()), len(self.event["readings"]))
 
     def test_archive_has_bounded_event_count(self):
         for seq in range(3):
@@ -135,7 +136,7 @@ class PipelineTests(unittest.TestCase):
             self.ingest(event, self.time + seq)
         self.store.prune(self.time + 3, 90, max_events=2)
         self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM events").fetchone()[0], 2)
-        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM readings").fetchone()[0], 2)
+        self.assertEqual(self.store.db.execute("SELECT COUNT(*) FROM readings").fetchone()[0], 2 * len(self.event["readings"]))
 
 
 class ProcessTests(unittest.IsolatedAsyncioTestCase):

@@ -123,8 +123,11 @@ receipt; ask the backend owner to independently verify JetStream capture and
 processor acceptance using the printed boot ID. The coordinates/medium extension
 has already passed this physical-Pi acceptance test.
 
-The real Socket.IO spatial gateway is being deployed separately. Sensor ingestion
-is live, but do not claim end-to-end phone enrichment based only on MQTT PUBACK.
+The real Socket.IO spatial gateway is deployed and publicly verified; see
+backend/docs/deployment-zerod.md for verified deployment status. Sensor ingestion
+is live. The backend owner must enroll actual device IDs and public/private
+ownership before a nearby phone receives those readings. Do not claim
+end-to-end phone enrichment based only on MQTT PUBACK.
 
 Deliver: working MQTT publishing firmware in your sensors/<node>/ folder, a
 brief wiring/configuration README with credential placeholders, and the actual

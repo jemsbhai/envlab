@@ -82,7 +82,8 @@ Example of a transport-valid failed result, with no fabricated nutrition:
 
 ## iOS connection and permission handoff
 
-The public endpoint is `wss://dewin-events.cbnsndwch.dev`. The existing `viewer`
+The earlier proposal used `wss://dewin-events.cbnsndwch.dev`, retired during
+the environmental API cutover. The legacy `viewer`
 identity can read the environmental live feed only; it cannot operate JetStream
 consumers or read meal results. Do not give the app the internal pipeline login.
 
