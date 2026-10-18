@@ -25,13 +25,16 @@ values = dict(line.split("=", 1) for line in template.splitlines()
 admin_file = runtime / "portainer-admin-password"
 admin_file.write_text(values["PORTAINER_ADMIN_PASSWORD"], encoding="utf-8")
 admin_file.chmod(0o600)
-clients = {"clients": [{"userId": user, "tokenSha256": hashlib.sha256(values[key].encode()).hexdigest()}
-                       for user, key in (("demo-ios", "API_DEMO_TOKEN"), ("demo-other", "API_SECOND_TOKEN"))]}
 clients_file = runtime / "api-clients.json"
-clients_file.write_text(json.dumps(clients, indent=2)+"\n", encoding="utf-8")
-# Parent is mode 0700. Bind-mounted files must be readable by container UID 10001.
-# Only token hashes, never the login tokens, are written here.
-clients_file.chmod(0o644)
+if not clients_file.exists():
+    # Bootstrap once. Enrollment, revocation and token rotation are deliberate
+    # registry edits; re-running ordinary setup must preserve existing clients.
+    clients = {"clients": [{"userId": user, "tokenSha256": hashlib.sha256(values[key].encode()).hexdigest()}
+                           for user, key in (("demo-ios", "API_DEMO_TOKEN"), ("demo-other", "API_SECOND_TOKEN"))]}
+    with clients_file.open("x", encoding="utf-8") as stream:
+        stream.write(json.dumps(clients, indent=2)+"\n")
+    # Parent is mode 0700. Only token hashes are readable by container UID 10001.
+    clients_file.chmod(0o644)
 devices = runtime / "devices.json"
 if not devices.exists():
     devices.write_text((path.parent / "deploy/devices.example.json").read_text(encoding="utf-8"), encoding="utf-8")

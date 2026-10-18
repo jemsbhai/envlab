@@ -25,7 +25,7 @@ LOG = logging.getLogger("dewin-api")
 
 class Gateway:
     def __init__(self):
-        origins = os.getenv("API_ALLOWED_ORIGINS", "https://dewin-api.cbnsndwch.dev,https://dewin.cbnsndwch.dev,http://localhost:3000,http://localhost:5173")
+        origins = os.getenv("API_ALLOWED_ORIGINS") or "https://dewin-api.cbnsndwch.dev,https://dewin.cbnsndwch.dev,http://localhost:3000,http://localhost:5173"
         self.sio = socketio.AsyncServer(async_mode="aiohttp", cors_allowed_origins=origins.split(","),
                                        max_http_buffer_size=65536, logger=False, engineio_logger=False)
         self.app = web.Application()

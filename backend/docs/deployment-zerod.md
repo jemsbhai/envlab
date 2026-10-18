@@ -36,8 +36,8 @@ inspects the externally managed backend, but on-disk Compose files are authorita
 The gateway serves canonical API documents from the read-only `./docs:/app/docs`
 mount, so documentation updates do not require an application-image rebuild.
 The static interactive explainer is served at `/architecture/` from
-`docs/architecture/index.html`. Gateway image `water-monitor:gateway-demo` adds
-that route; the existing NEX worker may continue on `water-monitor:gateway`.
+`docs/architecture/index.html`. NEX and the gateway use the ARM64
+`water-monitor:gateway-demo` image, including the idle-fetch timeout fix.
 The old `dewin-events.cbnsndwch.dev` NATS ingress was removed at the API cutover;
 it is not an app endpoint.
 
@@ -60,8 +60,9 @@ Keep `.runtime/` mode 0700. The registry JSON files are mode 0644 so container
 UID 10001 can read their bind mounts; only token hashes are present. The tunnel
 credential is mode 0600, owned by UID/GID 1000 for its connector container.
 Plaintext app tokens and the Cloudflare account certificate stay on the laptop.
-Do not rerun `init_env.py` on a Pi lacking the plaintext demo-token variables:
-it would create new tokens and overwrite the allowed token hashes.
+Run token provisioning on the laptop. Ordinary initialization preserves an
+existing client registry; enrollment, rotation, and revocation require explicit
+registry edits. Keep plaintext app tokens on the laptop.
 
 The gateway loads its token-hash file at startup. After changing it, recreate
 the gateway and disconnect existing sessions to revoke a token. After replacing

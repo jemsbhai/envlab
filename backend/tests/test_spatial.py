@@ -96,6 +96,71 @@ class SpatialTests(unittest.TestCase):
         self.assertEqual(result["sensors"][0]["visibility"], "public")
         self.assertEqual(authorized_result(result, "bob", self.devices)["sensors"], [])
 
+    def test_retained_mqtt_retry_matches_rebuild_and_counts_identity_once(self):
+        for synchronized in (False, True):
+            with self.subTest(synchronized=synchronized):
+                first = packet("sim-pico-01", "boot", 0, self.t-20)
+                first["readings"] = [first["readings"][0]]
+                first["readings"][0]["value"] = 10
+                if not synchronized:
+                    first["measured_at"] = None
+                second = deepcopy(first)
+                second["seq"] = 1
+                second["readings"][0]["value"] = 30
+                if synchronized:
+                    second["measured_at"] = iso(self.t-10)
+                records = []
+                for event, received, sequence in ((first, self.t-20, 1), (second, self.t-10, 2),
+                                                   (first, self.t-5, 3)):
+                    normalized, observed = validate(encode(event), "env.v1.sim-pico-01.telemetry", received)
+                    records.append((normalized, observed, received, sequence))
+                running = SensorIndex()
+                for record in records:
+                    running.add(*record)
+                running.add(*records[-1])  # Consumer redelivery is not a new raw occurrence.
+                self.assertEqual(len(running.order), 3)
+                self.assertEqual(len(running.points["sim-pico-01"]), 2)
+                running.retain_from(2)
+                rebuilt = SensorIndex()
+                for record in records[1:]:
+                    rebuilt.add(*record)
+                result = running.match(self.location, self.devices)
+                self.assertEqual(result["sensors"], rebuilt.match(self.location, self.devices)["sensors"])
+                measurement = result["sensors"][0]["measurements"][0]
+                self.assertEqual(measurement["rollingMean"], 20)
+                self.assertEqual(measurement["sampleCount"], 2)
+                if not synchronized:
+                    self.assertIsNone(result["sensors"][0]["measuredAt"])
+                    self.assertEqual(result["sensors"][0]["observedAt"], iso(self.t-5))
+                    self.assertEqual(result["sensors"][0]["receivedAt"], iso(self.t-5))
+                bounded = SensorIndex(max_points=2)
+                for record in records:
+                    bounded.add(*record)
+                self.assertEqual(bounded.match(self.location, self.devices)["sensors"], result["sensors"])
+
+    def test_newest_all_invalid_packet_does_not_mask_fresh_eligible_packet(self):
+        self.add("sim-pico-01", self.t-5, 0, value=42)
+        invalid = packet("sim-pico-01", "boot", 1, self.t-1)
+        for reading in invalid["readings"]:
+            reading["quality"] = "invalid"
+        event, observed = validate(encode(invalid), "env.v1.sim-pico-01.telemetry", self.t-1)
+        self.index.add(event, observed, self.t-1, 2)
+        result = self.index.match(self.location, self.devices)
+        self.assertEqual(result["status"], "matched")
+        self.assertEqual(result["sensors"][0]["observedAt"], iso(self.t-5))
+        self.assertEqual(result["sensors"][0]["measurements"][0]["value"], 42)
+        expired = deepcopy(self.location)
+        expired["location"]["measuredAt"] = iso(self.t+296)
+        self.assertEqual(self.index.match(expired, self.devices)["status"], "no_match")
+
+    def test_sensor_timestamp_is_canonical_rfc3339_and_preserves_null(self):
+        event = packet("sim-pico-01", "boot", 0, self.t-5)
+        event["measured_at"] = iso(self.t-5).replace("T", " ").replace("Z", "+00:00")
+        event, observed = validate(encode(event), "env.v1.sim-pico-01.telemetry", self.t-4)
+        self.index.add(event, observed, self.t-4, 1)
+        result = self.index.match(self.location, self.devices)
+        self.assertEqual(result["sensors"][0]["measuredAt"], iso(self.t-5))
+
 
 if __name__ == "__main__":
     unittest.main()
