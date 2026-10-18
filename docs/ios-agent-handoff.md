@@ -7,10 +7,36 @@ and water measurements, live and historically. The app does not speak NATS.
 Food analysis, glasses, face recognition, and Home Assistant are outside this
 mobile MVP.
 
-The NATS/MQTT backend is deployed. **The real Socket.IO gateway and
-`https://dewin-api.cbnsndwch.dev` are not deployed yet.** Use the local mock and
-fixtures now; the same Socket.IO contract is the target for the real gateway.
-Never send Socket.IO frames to the legacy NATS WebSocket endpoint.
+The real Socket.IO gateway and NEX spatial worker are deployed, backed by
+JetStream streams/KV. The public API passed the real integration check on
+18 October 2026; see [the deployment notes](../backend/docs/deployment-zerod.md).
+Use the connection settings below now. The local mock remains available for
+isolated app development.
+
+## Real API connection
+
+| Setting | Value |
+| --- | --- |
+| Base URL | `https://dewin-api.cbnsndwch.dev` |
+| Socket.IO path / namespace | `/socket.io/` / `/` |
+| Protocol | Socket.IO 4 / Engine.IO 4 |
+| Connect payload | `{"token":"PERSONAL_API_TOKEN"}` |
+| App events | `location:update`, `exposure:update`, `exposure:history` |
+
+Obtain a personal token privately from the backend owner. It determines the
+server-side user; do not send a user ID or put the token in a query string.
+Use a Socket.IO client, not URLSessionWebSocketTask with plain JSON frames or a
+NATS client. The former `dewin-events.cbnsndwch.dev` route is retired.
+Use HTTPS with normal certificate validation and keep token/socket debug logs
+disabled. `/healthz` is public readiness metadata, not an authentication test.
+
+For a controlled synthetic test, submit a current-timestamp demo fix at
+`25.7617, -80.1918`. Simulator water-temperature and air-humidity observations
+are marked `source: "simulated"`; `demo-ios` can see public `sim-pico-01` and
+`sim-pico-02` plus its own private `sim-pico-03`. The other demo identity sees
+only the public sensors. Actual phone positions may correctly return
+`no_match` until real nearby devices are registered. Keep test fixes separate
+from captured device locations and label simulated measurements in the UI.
 
 ## Canonical files
 
@@ -22,6 +48,7 @@ Never send Socket.IO frames to the legacy NATS WebSocket endpoint.
 | [`backend/examples/DewinSocket.swift`](../backend/examples/DewinSocket.swift) | Official Swift Socket.IO client starter; configurable URL |
 | [`backend/scripts/mock_api.py`](../backend/scripts/mock_api.py) | Local Socket.IO integration mock |
 | [`backend/scripts/check_mock_api.py`](../backend/scripts/check_mock_api.py) | Executable contract/transport check |
+| [`backend/scripts/check_live_api.py`](../backend/scripts/check_live_api.py) | Real JetStream-backed API integration check |
 | [`backend/docs/pico-contract.md`](../backend/docs/pico-contract.md) | MQTT firmware handoff; not the app's API |
 
 The Swift starter has not been compiled in the team's Xcode project. Keep its
@@ -109,11 +136,14 @@ Handle connection/auth failure separately from request error ACKs and timeouts.
 > Read `AGENTS.md`, `docs/ios-agent-handoff.md`, and
 > `backend/docs/api-v1.md`. Integrate the iOS app with the official Swift
 > Socket.IO client using the three defined events. Use the JSON fixtures for
-> typed decoding tests and the local mock for live/ACK/history integration.
+> typed decoding tests. The real base URL is https://dewin-api.cbnsndwch.dev,
+> path /socket.io/, namespace /, Engine.IO 4. Obtain the personal token privately
+> and send it in the connect payload. The public real API is verified and live;
+> the local mock is available for isolated live/ACK/history integration.
 > Make the base URL and personal token configurable, retain the SocketManager,
 > queue/retry GPS fixes with stable event IDs, upsert exposures, paginate history,
 > and recover the disconnect gap on reconnect. Implement matched/no-match,
 > missing metrics, private/public, and simulated states without inventing health
-> scores. The production gateway is pending; report mock versus real-server
-> validation separately. Do not change event names or schemas without updating
+> scores. Report mock versus real-server validation separately. Do not change
+> event names or schemas without updating
 > the shared contract and coordinating with the backend owner.

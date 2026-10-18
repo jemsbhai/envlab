@@ -1,90 +1,103 @@
-# Dewin public feed
+# Dewin named Cloudflare Tunnel
 
-The named Cloudflare Tunnel `dewin-zerod` runs on the backend Pi and exposes:
+The API cutover uses the existing `dewin-zerod` tunnel, managed in Cloudflare
+account `cbnsndwch`, zone `cbnsndwch.dev`:
 
 ```text
-wss://dewin-events.cbnsndwch.dev
-            -> cloudflared on zerod
-            -> http://127.0.0.1:8080
-            -> NATS WebSocket, viewer login only
+https://dewin-api.cbnsndwch.dev
+          -> cloudflared on zerod
+          -> http://127.0.0.1:8765
+          -> Socket.IO gateway /socket.io/ + API health/docs
 ```
 
-Subscribe to `env.processed.>` with username `viewer` and `VIEWER_PASSWORD`
-from `.env`. Use a NATS WebSocket client; this endpoint speaks NATS, rather than
-plain JSON frames. It does not serve a webpage. HA, Portainer, MQTT publishing,
-Core NATS, and NATS monitoring have no public tunnel routes.
+The API is deployed and passed real public end-to-end integration checks on
+18 October 2026; see [validation details](deployment-zerod.md). The route carries Socket.IO 4 /
+Engine.IO 4, including WebSocket transport and polling. It requires a personal
+token in the Socket.IO connect payload. It does not expose native NATS or MQTT.
+The old `dewin-events.cbnsndwch.dev` NATS-over-WebSocket ingress rule was removed
+at the cutover; the hostname receives the 404 catch-all.
 
-## Credentials and account management
+Home Assistant, Portainer, MQTT, Core NATS, and NATS monitoring have no public
+tunnel routes. A public gateway URL does not make it anonymous; API authorization
+still applies. `/`, `/healthz`, and the three canonical contract documents are
+public service metadata, without per-user data or credentials.
 
-- Cloudflare account: `cbnsndwch`; zone: `cbnsndwch.dev`.
-- Tunnel ID: `517a8da6-71eb-448a-b847-a46e376a52b7`.
-- Account certificate stays on this laptop at
+## Credential boundary
+
+- Tunnel UUID: `517a8da6-71eb-448a-b847-a46e376a52b7`.
+- Account certificate stays on the laptop in the original private workspace:
   `.runtime/cloudflare-profile/.cloudflared/cert.pem`.
-  The existing `~/.cloudflared` login is preserved.
-- Only `.runtime/cloudflare-tunnel.json`, which can run this one tunnel, is
-  copied to the Pi. It is mode 0600, owned by UID/GID 1000, matching the
-  unprivileged connector container's user. Its parent directory is mode 0700.
-- No Cloudflare account certificate, OAuth refresh token, or account API token
-  is copied to the Pi. Private runtime files are ignored by Git and Docker builds.
+- Keep the existing unrelated `~/.cloudflared` login unchanged.
+- Copy only `.runtime/cloudflare-tunnel.json` to the Pi. It can run this one
+  tunnel, but it cannot administer the account or DNS. File mode is 0600, owned
+  by UID/GID 1000; its parent `.runtime/` is mode 0700.
+- Do not copy account certificates, API tokens, or OAuth refresh tokens to the
+  Pi, repository, container image, or app.
 
-Cloudflare documents the distinction between
-[account certificates and tunnel credentials](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/tunnel-permissions/).
+The distinction is documented by
+[Cloudflare's tunnel permissions](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/tunnel-permissions/).
+The connector image is `cloudflare/cloudflared:2026.10.1`, runs as UID/GID 1000
+with host networking, publishes no ports, and binds metrics to localhost 2000.
 
-The generated `.runtime/cloudflared.yml` contains the tunnel ID, credential mount
-path, the single hostname-to-localhost route, and a final HTTP 404 catch-all.
-The connector uses `cloudflare/cloudflared:2026.10.1`, has no published ports,
-and restarts with Docker. Metrics bind only to Pi localhost port 2000.
+## Route and operate
 
-## Operate on the Pi
+The Pi's ignored `.runtime/cloudflared.yml` should contain only the API ingress
+and a final catch-all:
 
-```sh
-cd ~/team-zero-water-monitor
-sudo -n docker compose -f deploy/cloudflared.compose.yaml ps
-sudo -n docker compose -f deploy/cloudflared.compose.yaml logs --tail 50
-curl -f http://127.0.0.1:2000/ready
-sudo -n docker compose -f deploy/cloudflared.compose.yaml stop
-sudo -n docker compose -f deploy/cloudflared.compose.yaml up -d
+```yaml
+tunnel: 517a8da6-71eb-448a-b847-a46e376a52b7
+credentials-file: /run/secrets/tunnel_credentials
+metrics: 127.0.0.1:2000
+ingress:
+  - hostname: dewin-api.cbnsndwch.dev
+    service: http://127.0.0.1:8765
+  - service: http_status:404
 ```
 
-The source Compose file expects the two private runtime files already present.
-It deliberately cannot create a tunnel or change DNS from the Pi.
-
-## Manage or revoke from this laptop
-
-In PowerShell from the project folder:
+First verify origin `/healthz` on the Pi. From the laptop, check that no unrelated
+record already occupies the exact API hostname, then create its DNS route using
+the existing tunnel UUID and this account's private certificate:
 
 ```powershell
 $dewinCert = '.runtime/cloudflare-profile/.cloudflared/cert.pem'
 $dewinTunnel = '517a8da6-71eb-448a-b847-a46e376a52b7'
+cloudflared tunnel --origincert $dewinCert route dns $dewinTunnel dewin-api.cbnsndwch.dev
 cloudflared tunnel --origincert $dewinCert info $dewinTunnel
 ```
 
-DNS was created without overwriting an existing record. Its proxied CNAME is
-`dewin-events.cbnsndwch.dev` ->
+Run these in the original private workspace containing the certificate, not a
+fresh repo checkout. Do not use `--overwrite-dns` against an unknown record.
+The route's proxied CNAME points at
 `517a8da6-71eb-448a-b847-a46e376a52b7.cfargotunnel.com`.
-To retire it, stop the connector, remove this exact DNS record from the
-`cbnsndwch.dev` zone, then delete this exact tunnel from the laptop. Deleting
-the tunnel revokes its run credential. Leave unrelated tunnels and DNS records alone.
 
-## Browser origins and access
-
-`deploy/nats.conf` explicitly allows `https://dewin.cbnsndwch.dev`, localhost
-ports 3000/5173, and the existing Pi web apps on ports 80/3000. Add the teammate's
-actual frontend origin if it differs. NATS requires the full scheme, hostname,
-and port. Validate the configuration and **restart** NATS after changing the
-WebSocket block; this block cannot be changed with a HUP reload:
+On the Pi:
 
 ```sh
-sudo -n docker compose exec -T nats nats-server -t -c /etc/nats/nats.conf
-sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml restart nats
+cd ~/team-zero-water-monitor
+sudo -n docker compose -f deploy/cloudflared.compose.yaml up -d --force-recreate
+sudo -n docker compose -f deploy/cloudflared.compose.yaml ps
+curl -f http://127.0.0.1:2000/ready
+sudo -n docker compose -f deploy/cloudflared.compose.yaml logs --tail 50
 ```
 
-Origin checks apply to browsers. All clients must still authenticate. Viewer
-credentials allow WebSocket connections and processed subscriptions only;
-publishing and raw/history/system subscriptions are denied. Sensor and HA logins
-allow MQTT only; pipeline credentials allow local Core NATS/MQTT, with no
-WebSocket connection types. No anonymous or Cloudflare Access bypass login exists.
+Then verify trusted TLS, public `/healthz`, and the real Socket.IO integration
+check. A Cloudflare HTTP 200 alone does not establish authenticated API operation.
+Test that the old public NATS hostname no longer provides a NATS connection.
 
-Verified through the public hostname: trusted TLS, all three simulated devices,
-viewer publish/raw subscription denial, privileged NATS WebSocket login denial,
-and allowed/rejected browser Origin handshakes.
+Browser origin restrictions belong to `API_ALLOWED_ORIGINS` in the gateway.
+Native iOS uses the same token authentication. The old NATS WebSocket origin
+allowlist in `deploy/nats.conf` does not control this Socket.IO route.
+
+## Revoke or retire
+
+To stop external API access, stop this connector project:
+
+```sh
+sudo -n docker compose -f deploy/cloudflared.compose.yaml stop
+```
+
+To retire the tunnel permanently, remove only its exact Dewin DNS records from
+`cbnsndwch.dev`, then delete this tunnel from the authorized laptop. Deletion
+revokes its run credential. Leave unrelated DNS records, tunnels, and account
+logins alone. A per-user app-token revocation is separate: remove that user's
+token hash, recreate the gateway, and disconnect their existing sessions.

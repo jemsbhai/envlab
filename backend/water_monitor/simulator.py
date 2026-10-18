@@ -13,10 +13,13 @@ from .mqtt_client import MqttClient
 def packet(device_id, boot_id, seq, timestamp=None):
     return {
         "schema_version": 1, "device_id": device_id, "location_id": "demo-school",
+        "position": {"latitude": 25.7617, "longitude": -80.1918},
         "boot_id": boot_id, "seq": seq, "measured_at": iso(now_ts() if timestamp is None else timestamp),
         "source": "simulated",
-        "readings": [{"sensor_id": "water-1", "metric": "temperature", "unit": "°C",
-                      "value": round(22 + 2 * math.sin(seq / 6), 2), "quality": "ok"}],
+        "readings": [{"sensor_id": "water-1", "medium": "water", "metric": "temperature", "unit": "°C",
+                      "value": round(22 + 2 * math.sin(seq / 6), 2), "quality": "ok"},
+                     {"sensor_id": "air-1", "medium": "air", "metric": "humidity", "unit": "%",
+                      "value": round(48 + 3 * math.sin(seq / 9), 2), "quality": "uncalibrated"}],
     }
 
 

@@ -1,18 +1,20 @@
 # Dewin API v1 — team integration contract
 
-**Status, 18 October 2026:** this is the v1 implementation contract for the new
-Socket.IO gateway. The gateway and public API hostname are **not deployed yet**.
-The MQTT broker is live. HA is stopped. Food/meal endpoints are outside v1.
+**Status, 18 October 2026:** the real Socket.IO gateway and NEX spatial worker
+are deployed on the Pi, using JetStream streams/KV. The public API passed real
+end-to-end integration checks; see [validation details](deployment-zerod.md).
+The MQTT broker is live. HA is stopped.
+Food/meal endpoints are outside v1.
 
 ## Connection
 
 | Setting | Value |
 | --- | --- |
-| Planned public URL | `https://dewin-api.cbnsndwch.dev` |
+| Live public API | `https://dewin-api.cbnsndwch.dev` |
 | Protocol | Socket.IO 4 / Engine.IO 4, JSON event payloads |
 | Socket.IO path | `/socket.io/` |
 | Namespace | `/` |
-| Transport | WebSocket; connect through a Socket.IO client |
+| Transport | WebSocket or Engine.IO polling; use a Socket.IO client |
 | Authentication | Socket.IO connect payload `{ "token": "PERSONAL_API_TOKEN" }` |
 
 Each event carries **one JSON object**, not a JSON-encoded string. All app API
@@ -25,8 +27,8 @@ the server derives it from the token. An invalid/revoked token fails connection
 with `connect_error`; there are no anonymous sessions. The app never needs a
 NATS client, broker credentials, or JetStream consumer permissions.
 
-The existing `wss://dewin-events.cbnsndwch.dev` endpoint speaks NATS-over-WebSocket
-and is a legacy development feed. It is **not** the iOS Socket.IO API.
+The earlier `wss://dewin-events.cbnsndwch.dev` NATS-over-WebSocket route is
+retired. Its ingress was removed at the API cutover.
 
 ## Events
 
@@ -250,7 +252,7 @@ Topic: `env/v1/<device_id>/telemetry`. The deployed v1 envelope is in
 or `"water"`. Firmware continues using its existing snake_case fields. These
 fields are accepted by the deployed validator and verified through JetStream and
 NEX on the physical Pi. Legacy packets remain accepted without them, but new
-firmware must include them for the upcoming spatial API. Ownership/privacy is provisioned on the
+firmware must include them for the spatial API. Ownership/privacy is provisioned on the
 server separately, never inferred from a phone or device's claimed owner ID.
 
 ## Architecture boundary

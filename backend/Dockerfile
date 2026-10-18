@@ -30,6 +30,7 @@ COPY --from=nex-build /out/nex /usr/local/bin/nex
 COPY --from=python-deps /deps/ /usr/local/lib/python3.13/site-packages/
 COPY water_monitor /usr/local/lib/python3.13/site-packages/water_monitor
 COPY deploy ./deploy
+COPY docs/api-v1.* ./docs/
 COPY --chown=10001:10001 deploy/data/ /data/
 USER 10001:10001
 CMD ["python", "-m", "water_monitor.nex_boot"]

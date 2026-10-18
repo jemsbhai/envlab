@@ -1,0 +1,544 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dewin Socket.IO API v1 payloads",
+  "$comment": "Validate a payload using the appropriate $defs entry. These definitions are implemented by the real Socket.IO gateway; see deployment-zerod.md for verified deployment status. Request objects are closed; response objects allow additive fields.",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/ConnectionAuth"
+    },
+    {
+      "$ref": "#/$defs/LocationUpdate"
+    },
+    {
+      "$ref": "#/$defs/LocationAck"
+    },
+    {
+      "$ref": "#/$defs/Exposure"
+    },
+    {
+      "$ref": "#/$defs/HistoryQuery"
+    },
+    {
+      "$ref": "#/$defs/HistoryPage"
+    },
+    {
+      "$ref": "#/$defs/ErrorAck"
+    }
+  ],
+  "$defs": {
+    "Position": {
+      "type": "object",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "accuracyM": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "latitude",
+        "longitude"
+      ],
+      "additionalProperties": false
+    },
+    "SensorPosition": {
+      "type": "object",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      },
+      "required": [
+        "latitude",
+        "longitude"
+      ],
+      "additionalProperties": false
+    },
+    "ConnectionAuth": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "token"
+      ],
+      "additionalProperties": false
+    },
+    "LocationUpdate": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "measuredAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "accuracyM": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "eventId",
+        "measuredAt",
+        "latitude",
+        "longitude"
+      ],
+      "additionalProperties": false
+    },
+    "LocationAck": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "duplicate": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok",
+        "eventId",
+        "receivedAt",
+        "duplicate"
+      ],
+      "additionalProperties": true
+    },
+    "Measurement": {
+      "type": "object",
+      "properties": {
+        "sensorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "medium": {
+          "enum": [
+            "air",
+            "water"
+          ]
+        },
+        "metric": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "value": {
+          "type": "number",
+          "minimum": -1000000000000.0,
+          "maximum": 1000000000000.0
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 24
+        },
+        "quality": {
+          "enum": [
+            "ok",
+            "uncalibrated"
+          ]
+        },
+        "rollingMean": {
+          "type": "number",
+          "minimum": -1000000000000.0,
+          "maximum": 1000000000000.0
+        },
+        "sampleCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "windowSeconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "sensorId",
+        "medium",
+        "metric",
+        "value",
+        "unit",
+        "quality"
+      ],
+      "additionalProperties": true
+    },
+    "SensorMatch": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "locationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "private"
+          ]
+        },
+        "distanceM": {
+          "type": "number",
+          "minimum": 0
+        },
+        "position": {
+          "$ref": "#/$defs/SensorPosition"
+        },
+        "measuredAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "maxLength": 40,
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "source": {
+          "enum": [
+            "sensor",
+            "simulated"
+          ]
+        },
+        "measurements": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/Measurement"
+          }
+        }
+      },
+      "required": [
+        "deviceId",
+        "locationId",
+        "visibility",
+        "distanceM",
+        "position",
+        "measuredAt",
+        "receivedAt",
+        "observedAt",
+        "source",
+        "measurements"
+      ],
+      "additionalProperties": true
+    },
+    "Exposure": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "exposureId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "locationEventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "measuredAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "processedAt": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "position": {
+          "$ref": "#/$defs/Position"
+        },
+        "status": {
+          "enum": [
+            "matched",
+            "no_match"
+          ]
+        },
+        "matchRadiusM": {
+          "type": "number",
+          "minimum": 0
+        },
+        "maxSensorAgeSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sensors": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/SensorMatch"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "exposureId",
+        "locationEventId",
+        "measuredAt",
+        "receivedAt",
+        "processedAt",
+        "position",
+        "status",
+        "matchRadiusM",
+        "maxSensorAgeSeconds",
+        "sensors"
+      ],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "matched"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "sensors": {
+                "minItems": 1
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sensors": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    "HistoryQuery": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "from": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "to": {
+          "type": "string",
+          "format": "date-time",
+          "maxLength": 40,
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}[Tt]\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?(?:[Zz]|[+-]\\d{2}:\\d{2})$"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 100
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "requestId",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryPage": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": true
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "$ref": "#/$defs/Exposure"
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ok",
+        "requestId",
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": true
+    },
+    "ErrorAck": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "const": false
+        },
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "enum": [
+                "UNAUTHORIZED",
+                "INVALID_PAYLOAD",
+                "EVENT_ID_CONFLICT",
+                "INVALID_CURSOR",
+                "RATE_LIMITED",
+                "UNAVAILABLE",
+                "INTERNAL_ERROR"
+              ]
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "field": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "retryable": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "retryable"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "ok",
+        "error"
+      ],
+      "additionalProperties": true
+    }
+  }
+}
