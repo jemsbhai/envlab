@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "device_id": "pico-water-01",
+  "location_id": "demo-venue",
+  "position": {
+    "latitude": 25.7617,
+    "longitude": -80.1918
+  },
+  "boot_id": "replace-with-random-id-per-boot",
+  "seq": 42,
+  "measured_at": null,
+  "source": "simulated",
+  "readings": [
+    {
+      "sensor_id": "tds-1",
+      "medium": "water",
+      "metric": "tds",
+      "value": 312,
+      "unit": "ppm",
+      "quality": "uncalibrated"
+    },
+    {
+      "sensor_id": "water-temp-1",
+      "medium": "water",
+      "metric": "temperature",
+      "value": 22.4,
+      "unit": "°C",
+      "quality": "ok"
+    },
+    {
+      "sensor_id": "air-1",
+      "medium": "air",
+      "metric": "humidity",
+      "value": 48,
+      "unit": "%",
+      "quality": "ok"
+    }
+  ]
+}

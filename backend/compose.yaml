@@ -1,0 +1,82 @@
+name: water-monitor
+
+services:
+  nats:
+    image: nats:2.15.1-alpine
+    command: ["-c", "/etc/nats/nats.conf"]
+    restart: unless-stopped
+    environment:
+      SENSOR_PASSWORD: ${SENSOR_PASSWORD:?Run python scripts/init_env.py}
+      PIPELINE_PASSWORD: ${PIPELINE_PASSWORD:?Run python scripts/init_env.py}
+      HA_PASSWORD: ${HA_PASSWORD:?Run python scripts/init_env.py}
+      VIEWER_PASSWORD: ${VIEWER_PASSWORD:?Run python scripts/init_env.py}
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+      - "127.0.0.1:${NATS_PORT:-4222}:4222"
+      - "127.0.0.1:${MONITOR_PORT:-8222}:8222"
+    volumes:
+      - ./deploy/nats.conf:/etc/nats/nats.conf:ro
+      - jetstream:/data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    logging: &logging
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+
+  nex:
+    build: .
+    image: ${WATER_MONITOR_IMAGE:-water-monitor:dev}
+    init: true
+    restart: unless-stopped
+    depends_on:
+      nats: {condition: service_healthy}
+    environment: &backend-env
+      NATS_URL: nats://nats:4222
+      NATS_USER: pipeline
+      NATS_PASSWORD: ${PIPELINE_PASSWORD}
+      MQTT_HOST: nats
+      MQTT_PORT: "1883"
+      MQTT_USER: pipeline
+      MQTT_PASSWORD: ${PIPELINE_PASSWORD}
+      DATABASE_PATH: /data/history.sqlite3
+      HEALTH_PATH: /data/worker-health.json
+      SENSOR_EXPIRE_SECONDS: ${SENSOR_EXPIRE_SECONDS:-30}
+      WINDOW_SECONDS: ${WINDOW_SECONDS:-60}
+      HISTORY_DAYS: ${HISTORY_DAYS:-90}
+    volumes:
+      - history:/data
+    mem_limit: 384m
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "python", "-m", "water_monitor.health"]
+      interval: 5s
+      timeout: 3s
+      start_period: 60s
+      retries: 6
+    logging: *logging
+
+  simulator:
+    image: ${WATER_MONITOR_IMAGE:-water-monitor:dev}
+    profiles: ["sim"]
+    command: ["python", "-m", "water_monitor.simulator"]
+    init: true
+    restart: unless-stopped
+    depends_on:
+      nex: {condition: service_healthy}
+    environment:
+      MQTT_HOST: nats
+      MQTT_PORT: "1883"
+      MQTT_USER: sensor
+      MQTT_PASSWORD: ${SENSOR_PASSWORD}
+      SIM_DEVICES: ${SIM_DEVICES:-3}
+      SIM_INTERVAL: ${SIM_INTERVAL:-5}
+    mem_limit: 64m
+    logging: *logging
+
+volumes:
+  jetstream:
+  history:

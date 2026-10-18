@@ -1,0 +1,9 @@
+homeassistant:
+  name: Dewin
+  time_zone: America/New_York
+  unit_system: metric
+
+default_config:
+
+recorder:
+  purge_keep_days: 7

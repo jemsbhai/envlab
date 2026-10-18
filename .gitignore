@@ -1,7 +1,17 @@
 # secrets and per-node config
 .env
+.env.*
+!.env.example
 *.env
 !*.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.runtime/
+.tools/
+*.sqlite3
+*.sqlite3-*
 
 # runtime data that lives on the Pi, never in git
 *.jsonl
