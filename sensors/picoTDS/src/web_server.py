@@ -166,6 +166,8 @@ class WebServer:
             tds = self.last_reading['tds_ppm']
             voltage = self.last_reading['voltage']
             temp = self.last_reading['temperature']
+            if temp is None:
+                temp = "Unavailable"
             update_time = int(time.time() - self.last_update_time)
             status = "Online"
         else:

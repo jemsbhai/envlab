@@ -1,446 +1,170 @@
-"""
-MQTT Client for PicoTDS
-Publishes TDS sensor data to MQTT broker
-Supports Home Assistant auto-discovery
-"""
+"""Dewin MQTT 3.1.1 telemetry; one QoS-1, non-retained envelope per sample."""
 
-import time
 import json
-import sys
+import os
+import time
 import machine
 import ubinascii
 import network
-import socket
+from umqtt.simple import MQTTClient
 
-# Try to import umqtt (standard MicroPython MQTT library)
-try:
-    from umqtt.simple import MQTTClient
-except ImportError:
-    print("Error: umqtt library not installed")
-    print("Install with: mip install umqtt.simple")
-    raise
-
-# Import configuration
 try:
     import mqtt as mqtt_config
 except ImportError:
-    print("Warning: MQTT config not found, using defaults")
-    class mqtt_config:
-        MQTT_BROKER = "192.168.1.100"
-        MQTT_PORT = 1883
-        MQTT_CLIENT_ID = "picotds"
-        MQTT_USER = ""
-        MQTT_PASSWORD = ""
-        MQTT_BASE_TOPIC = "picotds"
-        MQTT_TDS_TOPIC = "tds"
-        MQTT_VOLTAGE_TOPIC = "voltage"
-        MQTT_TEMP_TOPIC = "temperature"
-        MQTT_STATUS_TOPIC = "status"
-        MQTT_QOS = 1
-        MQTT_RETAIN = True
-        ENABLE_HA_DISCOVERY = True
-        HA_DISCOVERY_PREFIX = "homeassistant"
-        MQTT_PUBLISH_INTERVAL = 10
-        MQTT_KEEPALIVE = 60
-        MQTT_RECONNECT_DELAY = 5
+    raise ImportError("Create config/mqtt.py from mqtt.py.example and upload it as /mqtt.py")
+
+
+def valid_id(value):
+    allowed = "abcdefghijklmnopqrstuvwxyz0123456789_-"
+    return (isinstance(value, str) and 1 <= len(value) <= 48
+            and value[0] in allowed[:36] and all(c in allowed for c in value))
+
+
+def finite_number(value, low=-1000000000000, high=1000000000000):
+    return not isinstance(value, bool) and isinstance(value, (int, float)) and low <= value <= high
 
 
 class MQTTManager:
-    """Manages MQTT connection and publishing for PicoTDS"""
-
     def __init__(self):
         self.client = None
         self.connected = False
-        self.last_publish_time = 0
+        self.last_publish_time = None
+        self.last_connect_time = None
         self.device_id = self._get_device_id()
+        # One-board demo fixture, also used by the phone's demo mode. These are
+        # configured demo coordinates, not GPS measured by the Pico.
+        self.location_id = getattr(mqtt_config, "MQTT_LOCATION_ID", "demo-venue")
+        self.latitude = getattr(mqtt_config, "MQTT_LATITUDE", 25.7617)
+        self.longitude = getattr(mqtt_config, "MQTT_LONGITUDE", -80.1918)
+        if not valid_id(self.location_id):
+            raise ValueError("Set MQTT_LOCATION_ID in private mqtt.py (lowercase ID, max 48 characters)")
+        if not finite_number(self.latitude, -90, 90) or not finite_number(self.longitude, -180, 180):
+            raise ValueError("Set MQTT_LATITUDE and MQTT_LONGITUDE to this sensor's actual deployment coordinates")
+        if not getattr(mqtt_config, "MQTT_PASSWORD", "") or mqtt_config.MQTT_PASSWORD == "GET_PRIVATELY_FROM_SERGE":
+            raise ValueError("Set the private sensor MQTT password in mqtt.py")
+        self.topic = "env/v1/" + self.device_id + "/telemetry"
+        self.boot_id = ubinascii.hexlify(os.urandom(8)).decode()
+        self.seq = 0
+        self.pending_payload = None
+        print("Dewin device:", self.device_id, "topic:", self.topic)
+        print("Sensor deployment:", self.location_id, self.latitude, self.longitude)
 
     def _get_device_id(self):
-        """Generate unique device ID from MAC address"""
-        try:
-            wlan = network.WLAN(network.STA_IF)
-            wlan.active(True)
-            mac = wlan.config('mac')
-            mac_str = ubinascii.hexlify(mac).decode('ascii')
-            return f"picotds_{mac_str[-6:]}"
-        except:
-            # Fallback to configured client ID with random suffix
-            import random
-            suffix = random.randint(1000, 9999)
-            return f"{mqtt_config.MQTT_CLIENT_ID}_{suffix}"
-
-    def _get_topic(self, *parts):
-        """Build full topic path"""
-        parts = [mqtt_config.MQTT_BASE_TOPIC] + list(parts)
-        return "/".join(parts)
-
-    def discover_broker(self, timeout=10):
-        """
-        Discover MQTT broker on the network
-
-        Args:
-            timeout: Discovery timeout in seconds
-
-        Returns:
-            Broker IP address if found, None otherwise
-        """
-        print("Scanning network for MQTT broker...")
-
-        # Get network info
-        wlan = network.WLAN(network.STA_IF)
-        if not wlan.isconnected():
-            print("WiFi not connected, cannot discover broker")
-            return None
-
-        # Get network configuration
-        ifconfig = wlan.ifconfig()
-        my_ip = ifconfig[0]
-        gateway = ifconfig[2]
-
-        print(f"My IP: {my_ip}, Gateway: {gateway}")
-
-        # Try common broker IPs first
-        common_brokers = [
-            gateway,  # Often router/gateway
-            "192.168.1.1",
-            "192.168.0.1",
-            "192.168.1.10",
-            "192.168.1.100",
-            "10.0.0.1",
-            "10.0.0.100",
-        ]
-
-        for broker in common_brokers:
-            if self._test_mqtt_port(broker, mqtt_config.MQTT_PORT):
-                print(f"Found MQTT broker at: {broker}")
-                return broker
-
-        # Scan local subnet for MQTT port
-        print("Scanning local subnet for MQTT brokers...")
-        broker = self._scan_subnet_for_mqtt(my_ip, timeout)
-        if broker:
-            return broker
-
-        print("No MQTT broker found on network")
-        return None
-
-    def _test_mqtt_port(self, host, port, timeout=2):
-        """
-        Test if MQTT port is open on a host
-
-        Args:
-            host: IP address to test
-            port: Port number (default 1883)
-            timeout: Connection timeout in seconds
-
-        Returns:
-            True if port is open, False otherwise
-        """
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(timeout)
-            result = s.connect_ex((host, port))
-            s.close()
-            return result == 0
-        except:
-            return False
-
-    def _scan_subnet_for_mqtt(self, my_ip, timeout=10):
-        """
-        Scan local subnet for MQTT brokers
-
-        Args:
-            my_ip: Current device IP
-            timeout: Scan timeout in seconds
-
-        Returns:
-            Broker IP if found, None otherwise
-        """
-        # Parse IP to get subnet
-        ip_parts = my_ip.split('.')
-        if len(ip_parts) != 4:
-            return None
-
-        subnet = f"{ip_parts[0]}.{ip_parts[1]}.{ip_parts[2]}"
-
-        # Scan range 1-254 (common range)
-        print(f"Scanning subnet {subnet}.x for MQTT brokers...")
-        start_time = time.time()
-
-        for i in range(1, 255):
-            if time.time() - start_time > timeout:
-                print("Scan timeout reached")
-                break
-
-            host = f"{subnet}.{i}"
-            if host == my_ip:
-                continue  # Skip self
-
-            if self._test_mqtt_port(host, mqtt_config.MQTT_PORT, timeout=0.5):
-                print(f"Found MQTT broker at: {host}")
-                return host
-
-            # Small delay to avoid flooding network
-            time.sleep(0.01)
-
-        return None
+        override = getattr(mqtt_config, "MQTT_DEVICE_ID", "pico-water-01")
+        if override:
+            device_id = override
+        else:
+            try:
+                wlan = network.WLAN(network.STA_IF)
+                wlan.active(True)
+                suffix = ubinascii.hexlify(wlan.config("mac")).decode()[-6:]
+            except Exception:
+                suffix = ubinascii.hexlify(machine.unique_id()).decode()[-6:]
+            device_id = "picotds_" + suffix
+        if not valid_id(device_id):
+            raise ValueError("MQTT_DEVICE_ID must be a lowercase ID, max 48 characters")
+        return device_id
 
     def connect(self):
-        """
-        Connect to MQTT broker
-
-        Returns:
-            True if connected, False otherwise
-        """
-        broker = mqtt_config.MQTT_BROKER
-
-        # Use dynamic broker discovery if enabled
-        if getattr(mqtt_config, 'USE_BROKER_DISCOVERY', False):
-            print("Broker discovery enabled")
-            discovered_broker = self.discover_broker()
-            if discovered_broker:
-                broker = discovered_broker
-            else:
-                print("Discovery failed, falling back to configured broker")
-
-        print(f"Connecting to MQTT broker: {broker}")
-
+        self.last_connect_time = time.time()
+        self.disconnect()
         try:
-            # Create MQTT client
             self.client = MQTTClient(
-                client_id=self.device_id,
-                server=broker,
-                port=mqtt_config.MQTT_PORT,
-                user=mqtt_config.MQTT_USER if mqtt_config.MQTT_USER else None,
-                password=mqtt_config.MQTT_PASSWORD if mqtt_config.MQTT_PASSWORD else None,
-                keepalive=mqtt_config.MQTT_KEEPALIVE
+                client_id=self.device_id.encode(),
+                server=getattr(mqtt_config, "MQTT_BROKER", "10.104.0.82"),
+                port=getattr(mqtt_config, "MQTT_PORT", 1883),
+                user=getattr(mqtt_config, "MQTT_USER", "sensor").encode(),
+                password=mqtt_config.MQTT_PASSWORD.encode(),
+                keepalive=getattr(mqtt_config, "MQTT_KEEPALIVE", 60),
             )
-
-            # Set Last Will and Testament (LWT)
-            lwt_topic = self._get_topic(mqtt_config.MQTT_STATUS_TOPIC)
-            self.client.set_last_will(lwt_topic, b"offline", qos=1, retain=True)
-
-            # Connect
+            # No status/LWT, subscriptions, HA discovery or broker scanning: the
+            # sensor account is authorized only for env/v1/*/telemetry.
             self.client.connect()
+            if getattr(self.client, "sock", None):
+                self.client.sock.settimeout(10)
             self.connected = True
-
-            # Publish online status
-            self.client.publish(lwt_topic, b"online", qos=1, retain=True)
-
-            print(f"MQTT connected! Client ID: {self.device_id}")
-
-            # Send Home Assistant discovery if enabled
-            if mqtt_config.ENABLE_HA_DISCOVERY:
-                self.send_ha_discovery()
-
+            print("MQTT connected:", self.device_id)
             return True
-
-        except Exception as e:
-            print(f"MQTT connection failed: {e}")
-            self.connected = False
+        except Exception as error:
+            print("MQTT connect failed:", type(error).__name__)
+            self.disconnect()
             return False
 
     def disconnect(self):
-        """Disconnect from MQTT broker"""
-        if self.client and self.connected:
+        self.connected = False
+        if self.client:
             try:
-                # Publish offline status
-                lwt_topic = self._get_topic(mqtt_config.MQTT_STATUS_TOPIC)
-                self.client.publish(lwt_topic, b"offline", qos=1, retain=True)
                 self.client.disconnect()
-                self.connected = False
-                print("MQTT disconnected")
-            except Exception as e:
-                print(f"Error during disconnect: {e}")
+            except Exception:
+                try:
+                    self.client.sock.close()
+                except Exception:
+                    pass
+            self.client = None
 
     def is_connected(self):
-        """Check if connected to MQTT broker"""
         return self.connected
 
-    def publish(self, topic, payload, qos=None, retain=None):
-        """
-        Publish message to MQTT broker
-
-        Args:
-            topic: Topic suffix (base topic will be prepended)
-            payload: Message payload (string or bytes)
-            qos: QoS level (default from config)
-            retain: Retain flag (default from config)
-        """
-        if not self.connected:
-            return False
-
-        try:
-            full_topic = self._get_topic(topic)
-            qos = qos if qos is not None else mqtt_config.MQTT_QOS
-            retain = retain if retain is not None else mqtt_config.MQTT_RETAIN
-
-            if isinstance(payload, str):
-                payload = payload.encode('utf-8')
-
-            self.client.publish(full_topic, payload, qos=qos, retain=retain)
+    def check_connection(self):
+        if self.connected:
             return True
-
-        except Exception as e:
-            print(f"MQTT publish error: {e}")
-            self.connected = False
-            return False
-
-    def publish_tds_reading(self, reading):
-        """
-        Publish TDS sensor reading to MQTT
-
-        Args:
-            reading: Dictionary with TDS reading data
-        """
-        if not self.connected:
-            return False
-
-        try:
-            # Publish individual values
-            self.publish(mqtt_config.MQTT_TDS_TOPIC, str(reading['tds_ppm']))
-            self.publish(mqtt_config.MQTT_VOLTAGE_TOPIC, str(reading['voltage']))
-            self.publish(mqtt_config.MQTT_TEMP_TOPIC, str(reading['temperature']))
-
-            # Publish full reading as JSON
-            json_payload = json.dumps(reading)
-            self.publish("reading", json_payload)
-
-            print(f"MQTT: Published TDS={reading['tds_ppm']} ppm")
-            return True
-
-        except Exception as e:
-            print(f"Error publishing TDS reading: {e}")
-            return False
-
-    def should_publish(self):
-        """Check if it's time to publish (based on interval)"""
-        if mqtt_config.MQTT_PUBLISH_INTERVAL == 0:
-            return True  # Publish every reading
-
-        current_time = time.time()
-        if current_time - self.last_publish_time >= mqtt_config.MQTT_PUBLISH_INTERVAL:
-            self.last_publish_time = current_time
-            return True
-
+        delay = getattr(mqtt_config, "MQTT_RECONNECT_DELAY", 5)
+        if self.last_connect_time is None or time.time() - self.last_connect_time >= delay:
+            return self.connect()
         return False
 
-    def check_connection(self):
-        """Check and maintain MQTT connection, reconnect if needed"""
+    def should_publish(self):
+        interval = max(1, getattr(mqtt_config, "MQTT_PUBLISH_INTERVAL", 5))
+        now = time.time()
+        if self.last_publish_time is None or now - self.last_publish_time >= interval:
+            self.last_publish_time = now
+            return True
+        return False
+
+    def _timestamp(self):
+        # Unsynchronized MicroPython clocks must not be mistaken for UTC. The
+        # broker's original reception timestamp supplies event time when null.
+        if not getattr(mqtt_config, "MQTT_CLOCK_SYNCED", False):
+            return None
+        t = time.gmtime()
+        if t[0] < 2026:
+            return None
+        return "%04d-%02d-%02dT%02d:%02d:%02dZ" % t[:6]
+
+    def _packet(self, reading):
+        tds = reading.get("tds_ppm")
+        if not finite_number(tds, 0):
+            raise ValueError("TDS must be a finite nonnegative number")
+        readings = [{"sensor_id": "tds-1", "medium": "water", "metric": "tds",
+                     "value": tds, "unit": "ppm",
+                     "quality": "ok" if getattr(mqtt_config, "MQTT_TDS_CALIBRATED", False) else "uncalibrated"}]
+        # An old driver's default 25 C must never become a physical measurement.
+        temperature = reading.get("temperature")
+        if reading.get("temperature_measured") is True and finite_number(temperature, -55, 125):
+            readings.append({"sensor_id": "temperature-1", "medium": "water", "metric": "temperature",
+                             "value": temperature, "unit": "°C", "quality": "ok"})
+        return {"schema_version": 1, "device_id": self.device_id, "location_id": self.location_id,
+                "position": {"latitude": self.latitude, "longitude": self.longitude},
+                "boot_id": self.boot_id, "seq": self.seq, "measured_at": self._timestamp(),
+                "uptime_ms": time.ticks_ms(), "source": "sensor", "readings": readings}
+
+    def publish_tds_reading(self, reading):
         if not self.connected:
-            print("MQTT disconnected, attempting to reconnect...")
-            return self.connect()
-        return True
-
-    def send_ha_discovery(self):
-        """Send Home Assistant auto-discovery configuration"""
-        if not mqtt_config.ENABLE_HA_DISCOVERY:
-            return
-
-        print("Sending Home Assistant discovery config...")
-
+            return False
         try:
-            # Device info for HA
-            device_info = {
-                "identifiers": [self.device_id],
-                "name": "PicoTDS",
-                "model": "Raspberry Pi Pico W",
-                "manufacturer": "Raspberry Pi"
-            }
-
-            # TDS sensor
-            tds_config_payload = {
-                "device": device_info,
-                "name": "PicoTDS TDS",
-                "state_topic": self._get_topic(mqtt_config.MQTT_TDS_TOPIC),
-                "unit_of_measurement": "ppm",
-                "value_template": "{{ value | float }}",
-                "state_class": "measurement",
-                "unique_id": f"{self.device_id}_tds",
-                "icon": "mdi:water"
-            }
-
-            # Voltage sensor
-            voltage_config_payload = {
-                "device": device_info,
-                "name": "PicoTDS Voltage",
-                "state_topic": self._get_topic(mqtt_config.MQTT_VOLTAGE_TOPIC),
-                "unit_of_measurement": "V",
-                "value_template": "{{ value | float }}",
-                "state_class": "measurement",
-                "unique_id": f"{self.device_id}_voltage",
-                "icon": "mdi:lightning-bolt"
-            }
-
-            # Temperature sensor
-            temp_config_payload = {
-                "device": device_info,
-                "name": "PicoTDS Temperature",
-                "state_topic": self._get_topic(mqtt_config.MQTT_TEMP_TOPIC),
-                "unit_of_measurement": "°C",
-                "value_template": "{{ value | float }}",
-                "device_class": "temperature",
-                "state_class": "measurement",
-                "unique_id": f"{self.device_id}_temperature",
-                "icon": "mdi:thermometer"
-            }
-
-            # Publish discovery configs
-            discovery_prefix = mqtt_config.HA_DISCOVERY_PREFIX
-
-            self.client.publish(
-                f"{discovery_prefix}/sensor/{self.device_id}_tds/config",
-                json.dumps(tds_config_payload),
-                retain=True
-            )
-
-            self.client.publish(
-                f"{discovery_prefix}/sensor/{self.device_id}_voltage/config",
-                json.dumps(voltage_config_payload),
-                retain=True
-            )
-
-            self.client.publish(
-                f"{discovery_prefix}/sensor/{self.device_id}_temperature/config",
-                json.dumps(temp_config_payload),
-                retain=True
-            )
-
-            print("Home Assistant discovery sent successfully")
-
-        except Exception as e:
-            print(f"Error sending HA discovery: {e}")
-
-
-def main():
-    """Test MQTT connection"""
-    print("MQTT Client Test")
-    print("=" * 40)
-
-    mqtt = MQTTManager()
-
-    if mqtt.connect():
-        print("Connected successfully!")
-
-        # Test publish
-        print("Publishing test message...")
-        mqtt.publish("test", "Hello from PicoTDS!")
-
-        # Test TDS reading publish
-        test_reading = {
-            'tds_ppm': 150.5,
-            'voltage': 0.75,
-            'temperature': 25.0,
-            'raw_adc': 15000
-        }
-        mqtt.publish_tds_reading(test_reading)
-
-        time.sleep(2)
-
-        print("Disconnecting...")
-        mqtt.disconnect()
-    else:
-        print("Failed to connect")
-
-
-if __name__ == "__main__":
-    main()
+            if self.pending_payload is None:
+                self.pending_payload = json.dumps(self._packet(reading)).encode()
+            # umqtt.simple QoS 1 waits for PUBACK. A lost ACK preserves these
+            # exact bytes and boot_id/seq across the next connection.
+            self.client.publish(self.topic.encode(), self.pending_payload, qos=1, retain=False)
+            print("MQTT PUBACK:", self.device_id, "seq", self.seq)
+            self.pending_payload = None
+            self.seq += 1
+            return True
+        except (ValueError, TypeError) as error:
+            print("Telemetry validation failed:", type(error).__name__)
+            return False
+        except Exception as error:
+            print("MQTT publish failed; packet retained for retry:", type(error).__name__)
+            self.disconnect()
+            return False

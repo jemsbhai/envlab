@@ -1,8 +1,10 @@
 # Development tools for host machine (not for Pico W)
 # Install with: pip install -r requirements.txt
 
-# File transfer to Pico
+# File transfer to Pico (upload.sh uses mpremote; rshell remains optional)
+mpremote>=1.24.0
 rshell>=1.4.0
+jsonschema>=4.22.0  # Host smoke tests validate the canonical backend schema.
 
 # For future development (optional)
 pyserial>=3.5

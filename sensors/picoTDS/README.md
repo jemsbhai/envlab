@@ -21,6 +21,8 @@ test to check the transport before attaching real sensors.
 ## PicoTDS
 
 PicoTDS reads total dissolved solids with a Raspberry Pi Pico W. Hardware setup
-is in [Wiring](docs/WIRING.md) and [Calibration](docs/CALIBRATION.md). The current
-publisher still needs the [Dewin integration changes](../../docs/picotds-integration-prompt.md)
-before its messages follow the shared MQTT contract.
+is in [Wiring](docs/WIRING.md) and [Calibration](docs/CALIBRATION.md). The publisher
+now follows the Dewin contract. Start with [Quick start](docs/QUICKSTART.md) to
+configure private credentials and actual sensor coordinates, pull/upload the
+firmware and give Serge its printed device ID for enrollment. The detailed
+[MQTT setup](docs/MQTT_SETUP.md) includes topic mapping and app acceptance checks.

@@ -25,7 +25,7 @@ PicoTDS/
     ├── QUICKSTART.md             # Quick start guide
     ├── WIRING.md                 # Wiring diagrams and pinouts
     ├── CALIBRATION.md            # Sensor calibration guide
-    ├── MQTT_SETUP.md             # MQTT and Home Assistant setup
+    ├── MQTT_SETUP.md             # Dewin MQTT contract and enrollment
     └── WEB_SERVER.md             # Web server access and API
 ```
 
@@ -47,8 +47,7 @@ PicoTDS/
 **config/mqtt.py** (create from mqtt.py.example)
 - MQTT broker connection settings
 - Authentication credentials
-- Topic configuration
-- Home Assistant auto-discovery settings
+- Device identity and physical deployment coordinates
 - Publishing intervals
 - This file is gitignored to protect credentials
 
@@ -81,9 +80,8 @@ PicoTDS/
 - MQTT client implementation
 - Connection management with auto-reconnect
 - TDS reading publishing
-- Home Assistant auto-discovery
-- Last Will and Testament (LWT) for status
-- Dynamic broker discovery
+- Canonical Dewin telemetry envelopes, QoS 1, no retained publications
+- Stable retry identity and explicit deployment coordinates
 
 **src/web_server.py**
 - Simple HTTP web server

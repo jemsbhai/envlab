@@ -1,44 +1,31 @@
-#!/bin/bash
-# Upload script for PicoTDS
-# Usage: ./upload.sh [port]
+#!/usr/bin/env bash
+# Usage: bash upload.sh [auto|/dev/ttyACM0|/dev/tty.usbmodem...|COM3]
+set -euo pipefail
+cd -- "$(dirname -- "$0")"
+PORT="${1:-auto}"
 
-PORT=${1:-"/dev/tty.usbmodem101"}
-
-echo "PicoTDS Upload Script"
-echo "====================="
-echo "Port: $PORT"
-echo ""
-
-# Check if rshell is installed
-if ! command -v rshell &> /dev/null; then
-    echo "Error: rshell not installed"
-    echo "Install with: pip install rshell"
+if ! command -v mpremote >/dev/null 2>&1; then
+    echo "Install host tools first: python -m pip install -r requirements.txt"
     exit 1
 fi
+for config in wifi mqtt; do
+    if [[ ! -f "config/$config.py" ]]; then
+        echo "Missing private config/$config.py; create it from its example and configure it."
+        echo "Existing private configs are never overwritten by this script."
+        exit 1
+    fi
+done
 
-# Check if port exists
-if [ ! -e "$PORT" ]; then
-    echo "Error: Port $PORT not found"
-    echo "Available ports:"
-    ls /dev/tty.usbmodem* 2>/dev/null || ls /dev/ttyACM* 2>/dev/null || echo "No Pico devices found"
-    exit 1
+echo "Uploading to $PORT. Close Thonny/other serial monitors first."
+if ! mpremote connect "$PORT" exec "import umqtt.simple"; then
+    mpremote connect "$PORT" mip install umqtt.simple
 fi
+mpremote connect "$PORT" fs cp \
+    config/wifi.py config/tds_config.py config/mqtt.py config/web.py \
+    src/tds_sensor.py src/wifi_connect.py src/mqtt_client.py src/web_server.py src/main.py :/
 
-# Upload files
-echo "Uploading files to Pico W..."
-rshell -p "$PORT" --buffer-size 32 <<EOF
-cp config/wifi.py /wifi.py
-cp config/tds_config.py /tds_config.py
-cp config/mqtt.py /mqtt.py
-cp config/web.py /web.py
-cp src/tds_sensor.py /tds_sensor.py
-cp src/wifi_connect.py /wifi_connect.py
-cp src/mqtt_client.py /mqtt_client.py
-cp src/web_server.py /web_server.py
-cp src/main.py /main.py
-echo "Upload complete!"
-EOF
-
-echo ""
-echo "Files uploaded successfully!"
-echo "Press the reset button on your Pico W to run the code."
+# This validates required config and prints only public enrollment fields.
+mpremote connect "$PORT" exec "from mqtt_client import MQTTManager; m = MQTTManager(); print('ENROLL:', m.device_id, m.location_id, m.latitude, m.longitude)"
+mpremote connect "$PORT" reset
+echo "Upload complete. Watch MQTT connected / MQTT PUBACK messages with: mpremote connect $PORT repl"
+echo "Send Serge the ENROLL fields to enable this sensor in the app."

@@ -1,357 +1,93 @@
-# MQTT Setup Guide
+# PicoTDS → Dewin MQTT setup
 
-This guide explains how to configure PicoTDS to send sensor data to an MQTT broker, including Home Assistant integration.
+The publisher sends actual TDS readings to the running NATS MQTT broker. Home
+Assistant, broker discovery, status topics and Last Will messages are disabled.
 
-## What is MQTT?
+| Setting | Value |
+| --- | --- |
+| Broker | `10.104.0.82:1883`, on the event LAN |
+| Username | `sensor` |
+| Password | Get `SENSOR_PASSWORD` privately from Serge |
+| Topic | `env/v1/<device_id>/telemetry` |
+| MQTT | 3.1.1, QoS 1, retain false, every five seconds |
+| NATS mapping | `env.v1.<device_id>.telemetry` → stream `ENV_RAW` |
 
-MQTT (Message Queuing Telemetry Transport) is a lightweight messaging protocol ideal for IoT devices. It allows PicoTDS to publish sensor data to a broker, which can then be consumed by Home Assistant, Node-RED, or other IoT platforms.
+Copy `config/mqtt.py.example` to `config/mqtt.py` **only if the private file does
+not already exist**. For an existing private file, retain its secrets and add
+the new settings from the example. Set:
 
-## Prerequisites
-
-- Running MQTT broker (Mosquitto, EMQX, Home Assistant MQTT, etc.)
-- MQTT broker accessible from your network
-- MQTT credentials (username/password if authentication is enabled)
-
-## Setting Up MQTT Broker
-
-### Option 1: Home Assistant (Built-in MQTT)
-
-If you use Home Assistant with the MQTT integration:
-
-1. Go to Settings → Devices & Services → Add Integration → MQTT
-2. Configure your broker settings
-3. Note the broker IP and credentials
-
-### Option 2: Mosquitto (Standalone)
-
-```bash
-# Install Mosquitto
-# macOS
-brew install mosquitto
-
-# Linux (Ubuntu/Debian)
-sudo apt-get install mosquitto mosquitto-clients
-
-# Start the broker
-mosquitto -v
-```
-
-Default settings:
-- Broker: `localhost` or your server IP
-- Port: `1883` (unencrypted) or `8883` (TLS)
-- No authentication by default (enable for security)
-
-### Option 3: Docker
-
-```bash
-docker run -it -p 1883:1883 -p 9001:9001 eclipse-mosquitto
-```
-
-## Configure PicoTDS
-
-### Step 1: Create MQTT Configuration
-
-Copy the example configuration:
-```bash
-cp config/mqtt.py.example config/mqtt.py
-```
-
-### Option A: Dynamic Broker Discovery (Recommended for Dynamic Networks)
-
-If your MQTT broker has a dynamic IP address or changes frequently, enable automatic broker discovery:
-
-Edit `config/mqtt.py`:
 ```python
-USE_BROKER_DISCOVERY = True     # Enable automatic discovery
-DISCOVERY_TIMEOUT = 15         # Scan duration in seconds
-MQTT_BROKER = "192.168.1.1"    # Fallback (usually gateway)
+MQTT_BROKER = "10.104.0.82"
 MQTT_PORT = 1883
-MQTT_USER = ""                  # Leave empty if no auth
-MQTT_PASSWORD = ""              # Leave empty if no auth
+MQTT_USER = "sensor"
+MQTT_PASSWORD = "GET_PRIVATELY_FROM_SERGE"  # Replace locally; never commit.
+MQTT_DEVICE_ID = "pico-water-01"  # Public one-board demo; change for a second board.
+MQTT_LOCATION_ID = "demo-venue"
+MQTT_LATITUDE = 25.7617   # DEMO FIXTURE, shared with phone demo mode.
+MQTT_LONGITUDE = -80.1918 # Use actual coordinates for real phone GPS.
+MQTT_TDS_CALIBRATED = False
+MQTT_CLOCK_SYNCED = False
 ```
 
-**How Discovery Works:**
-1. PicoTDS scans common broker IPs (gateway, 192.168.1.1, etc.)
-2. If not found, it scans the entire local subnet (1-254)
-3. Tests each IP for open MQTT port (1883)
-4. Connects to the first broker found
-5. Falls back to configured MQTT_BROKER if discovery fails
+`pico-water-01` is the simplest public demo identity. Its readings are real, but
+the configured coordinates are an explicit demo fixture shared with phone demo
+mode; they are not Pico-measured GPS. Legacy configs missing these new fields
+also use this one-board fixture. Change identity for any second board; for real
+phone GPS, configure actual deployment coordinates. The firmware refuses an
+invalid coordinate or placeholder password. `MQTT_DEVICE_ID=None` instead
+derives `picotds_<last six lowercase Wi-Fi MAC hex digits>`.
+IDs use lowercase letters/digits/`_`/`-`, start with a letter/digit, and have at
+most 48 characters. Boot logs print identity, topic and configured coordinates.
 
-**Discovery Output:**
-```
-Scanning network for MQTT broker...
-My IP: 192.168.1.50, Gateway: 192.168.1.1
-Found MQTT broker at: 192.168.1.100
-Connecting to MQTT broker: 192.168.1.100
-MQTT connected! Client ID: picotds_abc123
-```
+Give Serge the exact device ID, location ID, coordinates, and whether the sensor
+is public or private. Private devices also require the owner's backend user ID.
+The backend must enroll the device; unregistered sensors are not exposed to the
+phone. Do not put ownership or visibility in MQTT payloads.
 
-### Option B: Static Broker IP
+The single packet has the canonical v1 envelope and `readings[]`:
 
-If your broker has a static IP, disable discovery:
-
-Edit `config/mqtt.py`:
-```python
-USE_BROKER_DISCOVERY = False    # Disable discovery
-MQTT_BROKER = "192.168.1.100"  # Your broker IP
-MQTT_PORT = 1883
-MQTT_USER = "your_username"    # Leave empty if no auth
-MQTT_PASSWORD = "your_password" # Leave empty if no auth
-```
-
-### Step 2: Install umqtt Library
-
-The Pico W needs the umqtt library. Install it via Thonny or rshell:
-
-**Using Thonny:**
-1. Tools → Manage Packages
-2. Search for "umqtt.simple"
-3. Click Install
-
-**Using rshell:**
-```bash
-rshell -p /dev/tty.usbmodem... repl
->>> import mip
->>> mip.install("umqtt.simple")
-```
-
-### Step 3: Upload Files
-
-Upload the MQTT configuration and client:
-```bash
-./upload.sh
-```
-
-Or manually:
-```bash
-rshell -p /dev/tty.usbmodem... connect
-cp config/mqtt.py /mqtt.py
-cp src/mqtt_client.py /mqtt_client.py
-cp src/main.py /main.py
-```
-
-### Step 4: Restart Pico W
-
-Press the reset button or power cycle. You should see:
-```
-Connecting to MQTT broker: 192.168.1.100
-MQTT connected! Client ID: picotds_abc123
-MQTT initialized
-```
-
-## MQTT Topics
-
-PicoTDS publishes to the following topics (under the base topic):
-
-```
-picotds/tds          - TDS value in ppm
-picotds/voltage      - Voltage reading in volts
-picotds/temperature  - Temperature in Celsius
-picotds/reading      - Full reading as JSON
-picotds/status       - Device status (online/offline)
-```
-
-### Example Messages
-
-**TDS:**
-```
-Topic: picotds/tds
-Payload: 150.5
-```
-
-**Full Reading (JSON):**
 ```json
 {
-  "tds_ppm": 150.5,
-  "voltage": 0.75,
-  "temperature": 25.0,
-  "raw_adc": 15000
+  "schema_version": 1,
+  "device_id": "picotds_a1b2c3",
+  "location_id": "demo-venue",
+  "position": {"latitude": 25.7617, "longitude": -80.1918},
+  "boot_id": "b7ac25e19f04d832",
+  "seq": 0,
+  "measured_at": null,
+  "uptime_ms": 1000,
+  "source": "sensor",
+  "readings": [
+    {"sensor_id": "tds-1", "medium": "water", "metric": "tds", "value": 150.5,
+     "unit": "ppm", "quality": "uncalibrated"}
+  ]
 }
 ```
 
-## Home Assistant Integration
+Coordinates above are the demo fixture; the value is illustrative. `tds` comes from the real ADC driver;
+it remains `uncalibrated` unless the sensor owner confirms calibration and sets
+`MQTT_TDS_CALIBRATED=True`. No air measurements or health scores are invented.
+Temperature appears only after a successful physical temperature-sensor read.
+Missing temperature is `None` locally and omitted from MQTT readings; 25°C may
+be used internally as a compensation reference, never as a fabricated reading.
 
-### Auto-Discovery (Recommended)
+Leave `MQTT_CLOCK_SYNCED=False` unless UTC has actually been synchronized; null
+`measured_at` tells the backend to use original broker reception time. A random
+boot ID is generated per startup. Failed publication retains the identical bytes
+and sequence for retry; a new sequence follows PUBACK. Broker/Wi-Fi failures
+reconnect without discarding the manager.
 
-PicoTDS supports Home Assistant's MQTT auto-discovery. When enabled, sensors appear automatically!
+Upload using [Quick start](QUICKSTART.md). For acceptance:
 
-**Requirements:**
-- MQTT broker must support retained messages
-- Home Assistant MQTT integration configured
-- `ENABLE_HA_DISCOVERY = True` in mqtt.py (default)
+1. Observe `MQTT connected` and `MQTT PUBACK` in the serial console. A failure
+   never reports PUBACK success; no password is logged.
+2. Ask Serge to confirm the device's packet in `ENV_RAW` and enroll it.
+3. Send a fresh phone fix within 100 meters of the configured sensor, after its
+   latest packet and within 300 seconds. An authorized user should receive an
+   `exposure:update` containing this device, `source: "sensor"`, `metric: "tds"`
+   and its value, then recover it using `exposure:history`.
+4. Interrupt/reconnect Wi-Fi or the broker and verify telemetry resumes.
 
-**Sensors will appear as:**
-- `sensor.picotds_tds` - TDS in ppm
-- `sensor.picotds_voltage` - Voltage in V
-- `sensor.picotds_temperature` - Temperature in °C
-
-### Manual Configuration
-
-If auto-discovery doesn't work, add this to your `configuration.yaml`:
-
-```yaml
-sensor:
-  - platform: mqtt
-    name: "PicoTDS TDS"
-    state_topic: "picotds/tds"
-    unit_of_measurement: "ppm"
-    value_template: "{{ value | float }}"
-    device_class: "none"
-
-  - platform: mqtt
-    name: "PicoTDS Voltage"
-    state_topic: "picotds/voltage"
-    unit_of_measurement: "V"
-    value_template: "{{ value | float }}"
-    device_class: "voltage"
-
-  - platform: mqtt
-    name: "PicoTDS Temperature"
-    state_topic: "picotds/temperature"
-    unit_of_measurement: "°C"
-    value_template: "{{ value | float }}"
-    device_class: "temperature"
-```
-
-### Binary Sensor for Online Status
-
-```yaml
-binary_sensor:
-  - platform: mqtt
-    name: "PicoTDS Status"
-    state_topic: "picotds/status"
-    payload_on: "online"
-    payload_off: "offline"
-    device_class: "connectivity"
-```
-
-## Testing MQTT Connection
-
-### Using mosquitto_sub
-
-```bash
-# Subscribe to all PicoTDS topics
-mosquitto_sub -h 192.168.1.100 -t "picotds/#" -v
-
-# Subscribe to TDS only
-mosquitto_sub -h 192.168.1.100 -t "picotds/tds"
-```
-
-### Using MQTT Explorer
-
-1. Download [MQTT Explorer](http://mqtt-explorer.com/)
-2. Connect to your broker
-3. Subscribe to `picotds/#`
-4. Watch messages appear
-
-## Advanced Configuration
-
-### Custom Topics
-
-Edit `config/mqtt.py` to change topic structure:
-```python
-MQTT_BASE_TOPIC = "home/sensors/water"  # Custom base
-MQTT_TDS_TOPIC = "tds_level"
-# Results in: home/sensors/water/tds_level
-```
-
-### Publishing Interval
-
-Control how often data is sent:
-```python
-MQTT_PUBLISH_INTERVAL = 10  # Every 10 seconds
-MQTT_PUBLISH_INTERVAL = 0   # Every reading (1 second default)
-```
-
-### QoS and Retain
-
-```python
-MQTT_QOS = 1        # 0=at most once, 1=at least once, 2=exactly once
-MQTT_RETAIN = True  # Broker keeps last message
-```
-
-### Authentication
-
-Always use authentication in production:
-```python
-MQTT_USER = "picotds"
-MQTT_PASSWORD = "secure_password"
-```
-
-On Mosquitto, create a password file:
-```bash
-mosquitto_passwd -c /etc/mosquitto/passwd picotds
-```
-
-## Troubleshooting
-
-### "MQTT connection failed"
-
-- Check broker IP is correct
-- Verify broker is running: `mosquitto -v`
-- Check firewall allows port 1883
-- Verify credentials if authentication enabled
-
-### "No MQTT broker found on network" (Discovery Mode)
-
-- Ensure broker is running and accessible
-- Check that broker is on the same subnet as Pico W
-- Increase `DISCOVERY_TIMEOUT` in config (default 15 seconds)
-- Verify broker is listening on port 1883
-- Try static broker IP mode instead of discovery
-
-### Broker discovery takes too long
-
-- Reduce `DISCOVERY_TIMEOUT` in config
-- Add your broker's common IP to the code's common_brokers list
-- Use static broker IP if broker IP is known
-
-### Broker discovery finds wrong broker
-
-- If multiple brokers exist, disable discovery and use static IP
-- Or modify the discovery priority in mqtt_client.py to prefer your broker
-
-### "umqtt library not installed"
-
-Install via Thonny or:
-```python
-import mip
-mip.install("umqtt.simple")
-```
-
-### Sensors not appearing in Home Assistant
-
-- Check MQTT integration is configured in HA
-- Verify auto-discovery is enabled
-- Check HA logs for errors
-- Manually add sensors if auto-discovery fails
-
-### Old data showing in Home Assistant
-
-- Check `MQTT_RETAIN = True` in config
-- Restart Home Assistant
-- Clear retained messages:
-  ```bash
-  mosquitto_pub -h broker -t "picotds/#" -r -n
-  ```
-
-### Connection drops frequently
-
-- Increase `MQTT_KEEPALIVE` (default 60 seconds)
-- Check WiFi signal strength
-- Ensure broker isn't overloaded
-
-## Security Best Practices
-
-1. **Use Authentication**: Never run an open broker on the internet
-2. **TLS/SSL**: Use port 8883 with certificates for encryption
-3. **Separate Credentials**: Create dedicated MQTT user for PicoTDS
-4. **Network Isolation**: Keep IoT devices on a separate VLAN
-5. **Regular Updates**: Keep Mosquitto and PicoTDS updated
-
-## Next Steps
-
-- Set up automation in Home Assistant based on TDS levels
-- Add Grafana dashboards for historical data
-- Integrate with Node-RED for complex logic
-- Add alerts for high/low TDS values
+The authoritative schema is
+[`backend/water_monitor/telemetry.schema.json`](../../../backend/water_monitor/telemetry.schema.json).
+Shared handoff: [sensor agent handoff](../../../docs/sensor-agent-handoff.md).
