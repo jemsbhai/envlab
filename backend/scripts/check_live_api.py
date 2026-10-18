@@ -1,8 +1,9 @@
 """Check the real Dewin Socket.IO API, including JetStream-backed recovery.
 
 Writes a few synthetic demo-user positions; it does not delete retained data.
-Credentials come from backend/.env or existing environment variables. Never
-prints credentials. Services restart only with the explicit --restarts flag.
+Anonymous demo access is tested directly. Existing private test tokens from
+backend/.env exercise separate-user isolation; they are not needed by the app.
+Never prints credentials. Services restart only with the explicit --restarts flag.
 """
 import argparse
 import asyncio
@@ -63,7 +64,8 @@ class DemoClient:
         self.changed.set()
 
     async def connect(self):
-        await self.socket.connect(self.url, auth={"token": self.token},
+        auth = {"token": self.token} if self.token is not None else None
+        await self.socket.connect(self.url, auth=auth,
                                   transports=[self.transport], wait_timeout=15)
         require(self.socket.transport() == self.transport, "Requested transport was not used")
 
@@ -201,10 +203,10 @@ async def run(args):
             "Two distinct private demo tokens are required")
     await health(args.url, args.ready_timeout)
     await rejected_auth(args.url, {"token": "invalid-live-api-token"})
-    await rejected_auth(args.url, None)
-    print("PASS real gateway health and anonymous/invalid-token rejection")
+    print("PASS real gateway health and explicitly invalid-token rejection")
     alice = DemoClient(args.url, token, "websocket")
     bob = DemoClient(args.url, other_token, "polling")
+    anonymous = DemoClient(args.url, None, "websocket")
     started = datetime.now(timezone.utc) - timedelta(seconds=2)
     baseline = None
     expected = set()
@@ -282,10 +284,35 @@ async def run(args):
         retry = await alice.call("location:update", baseline)
         require(retry["duplicate"] and retry["receivedAt"] == original_ack["receivedAt"], "Reconnect lost receipt identity")
         print("PASS reconnect history recovery and persistent deduplication")
+        await anonymous.connect()
+        # Tokenless phones intentionally share the existing demo-ios identity.
+        # They see the same demo history and receive each other's live results.
+        shared_history = await pages(anonymous, {**query, "limit": 100})
+        require(expected <= {x["locationEventId"] for x in shared_history},
+                "Anonymous app did not join the shared demo history")
+        await asyncio.sleep(.7)
+        anonymous_position = position()
+        anonymous_ack = await anonymous.call("location:update", anonymous_position)
+        validate("LocationAck", anonymous_ack)
+        require(not anonymous_ack["duplicate"], "Fresh anonymous demo position was not persisted")
+        anonymous_result = await anonymous.exposure(anonymous_position["eventId"])
+        owner_result = await alice.exposure(anonymous_position["eventId"])
+        check_sensors(anonymous_result, private=True)
+        require(anonymous_result["exposureId"] == owner_result["exposureId"],
+                "Anonymous and demo-ios clients used different identities")
+        expected.add(anonymous_position["eventId"])
+        anonymous_history = await pages(anonymous, {**query, "limit": 100})
+        require(expected <= {x["locationEventId"] for x in anonymous_history},
+                "Anonymous demo position was missing from shared history")
+        other_history = await pages(bob, {**query, "limit": 100})
+        require(anonymous_result["exposureId"] not in {x["exposureId"] for x in other_history},
+                "Anonymous shared demo history crossed into the optional separate user")
+        print("PASS tokenless app connection, persisted position, live enrichment, and shared demo-ios history")
         if args.restarts:
             if not args.broker_only_restart:
                 await alice.close()
                 await bob.close()
+                await anonymous.close()
             before = await process_identity(args) if args.broker_only_restart else None
             await restart_services(args)
             await health(args.url, args.ready_timeout)
@@ -308,6 +335,7 @@ async def run(args):
     finally:
         await alice.close()
         await bob.close()
+        await anonymous.close()
 
 
 if __name__ == "__main__":

@@ -27,8 +27,12 @@ final class DewinSocket {
         }
     }
 
-    func connect(personalToken: String) {
-        socket.connect(withPayload: ["token": personalToken])
+    func connect(personalToken: String? = nil) {
+        if let personalToken, !personalToken.isEmpty {
+            socket.connect(withPayload: ["token": personalToken])
+        } else {
+            socket.connect()
+        }
     }
 
     func disconnect() {

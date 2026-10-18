@@ -15,17 +15,22 @@ Food/meal endpoints are outside v1.
 | Socket.IO path | `/socket.io/` |
 | Namespace | `/` |
 | Transport | WebSocket or Engine.IO polling; use a Socket.IO client |
-| Authentication | Socket.IO connect payload `{ "token": "PERSONAL_API_TOKEN" }` |
+| Demo connection | No token required: omit auth or send `{}`; shared identity `demo-ios` |
 
 Each event carries **one JSON object**, not a JSON-encoded string. All app API
 keys use camelCase. Dates are RFC 3339 with a timezone; responses use UTC `Z`.
 Coordinates use WGS84 decimal degrees. Distances/accuracy use meters.
 
-Each team/demo user receives a separate opaque token out of band. Tokens stay
-out of URLs, logs, and source control. No user ID is accepted in an app request:
-the server derives it from the token. An invalid/revoked token fails connection
-with `connect_error`; there are no anonymous sessions. The app never needs a
-NATS client, broker credentials, or JetStream consumer permissions.
+Connect immediately without a token or login UI. Anonymous connections all use
+the shared `demo-ios` identity: they share its live updates, timeline, dedupe
+namespace, and access to sensors owned by that identity. This is intentionally
+a shared hackathon demo, not isolation between anonymous phones.
+
+Optional valid personal tokens still select their provisioned server-side
+identity. If a token is explicitly supplied but invalid, connection fails with
+`connect_error`; it does not silently fall back to the shared identity. Do not
+send a user ID in app requests. Optional tokens stay out of URLs, logs, and Git.
+The app needs no NATS client, broker credentials, or JetStream permissions.
 
 The earlier `wss://dewin-events.cbnsndwch.dev` NATS-over-WebSocket route is
 retired. Its ingress was removed at the API cutover.
@@ -78,7 +83,7 @@ Successful Socket.IO ACK, sent **after JetStream confirms persistence**:
 ```
 
 This confirms the position is stored; enrichment is asynchronous. Retry a
-timeout with the **same** event ID and payload. The identity is `(authenticated
+timeout with the **same** event ID and payload. The identity is `(server-assigned
 user, eventId)`: an identical retry returns `duplicate: true` and does not create
 another exposure. Reusing that ID for different data returns `EVENT_ID_CONFLICT`.
 `receivedAt` on a duplicate is the original acceptance time. Dedupe lasts while
@@ -158,7 +163,8 @@ a safe/unsafe conclusion. Temperature alone is not a water-quality assessment.
   Private home sensors may match only their owner, including on history reads.
   Unknown/unregistered devices are not exposed to app users.
 - Other users' locations, private devices, and even private match existence are
-  never broadcast. Emit only to the authenticated user's sockets.
+  never broadcast across server-side identities. Anonymous phones share the
+  `demo-ios` identity and therefore receive the same identity's live results.
 - `quality: "invalid"` readings are excluded. `uncalibrated` readings may appear
   with that label. Proximity and phone accuracy are context, not proof of consumption.
 - Enrichment is an event-time snapshot. Later sensor messages do not silently
@@ -205,8 +211,9 @@ history query. Do not assume uninterrupted phone background sockets on iOS.
 
 Target retention is **up to 90 days, bounded by configured stream capacity**.
 An empty page is normal; it is not evidence of zero exposure. The app should let
-users see gaps in data. History is scoped to the authenticated user and current
-private-sensor authorization. There is no cross-user history endpoint.
+users see gaps in data. History is scoped to the server-assigned identity and
+current private-sensor authorization. All anonymous phones share `demo-ios`
+history. There is no request field for selecting another identity's history.
 
 ## Errors
 
@@ -228,7 +235,7 @@ can be parsed, the response can omit that request's `eventId`/`requestId`.
 
 | Code | Meaning / app action |
 | --- | --- |
-| `UNAUTHORIZED` | Missing/invalid/revoked token; reconnect only after fixing credentials |
+| `UNAUTHORIZED` | An explicitly supplied token is invalid/revoked; omit auth for shared demo access, or fix the token |
 | `INVALID_PAYLOAD` | Missing/wrong fields, bounds, timestamp, or unsupported schema version |
 | `EVENT_ID_CONFLICT` | ID already belongs to different data; fix the producer's ID handling |
 | `INVALID_CURSOR` | Restart that history query without a cursor |
@@ -243,7 +250,8 @@ or internal broker credentials.
 ## Firmware / MQTT handoff
 
 **Already live:** `10.104.0.82:1883`, MQTT 3.1.1, QoS 1, retain false.
-Username `sensor`; obtain `SENSOR_PASSWORD` privately. Use unique MQTT client IDs.
+Omit username/password for the demo. Anonymous access can publish only telemetry;
+the existing optional `sensor` credentials also work. Use unique MQTT client IDs.
 Topic: `env/v1/<device_id>/telemetry`. The deployed v1 envelope is in
 [the Pico contract](pico-contract.md).
 

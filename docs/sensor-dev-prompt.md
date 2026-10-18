@@ -1,43 +1,59 @@
 # Dewin sensor developer handoff
 
-Copy the prompt below into your coding agent. Get the MQTT password privately;
-no real credentials are included in this document.
+Copy the prompt below into your coding agent. The demo broker requires no
+MQTT username or password.
+
+**Current physical board:** `pico-water-01` →
+**`env/v1/pico-water-01/telemetry`**, location `demo-venue`.
+It is already enrolled as public on the backend. Put all its air/water readings
+in one packet on this one topic.
 
 ````text
 You are implementing sensor firmware for Dewin / envlab. Read AGENTS.md and
 docs/sensor-agent-handoff.md in https://github.com/jemsbhai/envlab first.
+
+CURRENT PHYSICAL BOARD — USE THESE EXACT VALUES
+
+- device_id: pico-water-01
+- MQTT publish topic: env/v1/pico-water-01/telemetry
+- location_id: demo-venue
+- Backend enrollment: already public
+- Publish all this board's air/water channels in one readings array per packet.
 
 Connect the sensor nodes to the existing MQTT broker on the same demo LAN:
 
 - Broker: 10.104.0.82
 - Port: 1883
 - Protocol: MQTT 3.1.1 over TCP
-- Username: sensor
-- Password: SENSOR_PASSWORD, provided privately by the backend owner
+- Username/password: omit both; anonymous telemetry publishing is enabled
 - QoS: 1
 - Retain: false
 - Initial publication interval: 5 seconds
 - Use a unique MQTT client ID and a stable, unique device_id per physical node.
 
+Anonymous access can only publish the telemetry topics below; it cannot
+subscribe to app/user data. Existing optional sensor credentials still work.
+
 TOPIC MAPPING
 
-| Example node | Publish topic |
+| Node | Publish topic |
 | --- | --- |
-| Water node pico-water-01 | env/v1/pico-water-01/telemetry |
-| Air node pico-air-01 | env/v1/pico-air-01/telemetry |
-| Combined node pico-combo-01 | env/v1/pico-combo-01/telemetry |
+| CURRENT physical board: pico-water-01 (enrolled public) | env/v1/pico-water-01/telemetry |
 
-These are example device names. Assign each physical node its own stable name.
+Any second physical board needs a different stable device_id and a matching
+env/v1/<its_device_id>/telemetry topic. Tell the backend owner that ID and have
+it enrolled before expecting app results. Do not reuse pico-water-01 on a second board.
+
 The general pattern is env/v1/<device_id>/telemetry. The topic's device ID must
 exactly match the JSON device_id. Use one topic per physical node; place all of
 that node's channels in readings. Do not create separate topics per metric.
 
-Example complete packet for pico-combo-01:
+Example complete packet for the current physical board pico-water-01:
 
 ```json
 {
   "schema_version": 1,
-  "device_id": "pico-combo-01",
+  "device_id": "pico-water-01",
   "location_id": "demo-venue",
   "position": {"latitude": 25.7617, "longitude": -80.1918},
   "boot_id": "random-id-generated-once-per-boot",
@@ -111,7 +127,7 @@ Read these shared files:
 - backend/scripts/publish_sensor_example.py
 
 Verify the transport before wiring up the final sensor code. On a laptop/Pi
-with backend/requirements.txt installed and SENSOR_PASSWORD provided privately:
+with backend/requirements.txt installed; no MQTT credentials are required:
 
 ```sh
 cd backend

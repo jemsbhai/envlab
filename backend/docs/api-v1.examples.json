@@ -48,7 +48,7 @@
             "medium": "water",
             "metric": "temperature",
             "value": 22.4,
-            "unit": "°C",
+            "unit": "Â°C",
             "quality": "ok",
             "rollingMean": 22.1,
             "sampleCount": 12,
@@ -59,7 +59,7 @@
             "medium": "air",
             "metric": "pm2_5",
             "value": 12.3,
-            "unit": "µg/m³",
+            "unit": "Âµg/mÂ³",
             "quality": "uncalibrated",
             "rollingMean": 11.8,
             "sampleCount": 12,
@@ -115,7 +115,7 @@
                 "medium": "water",
                 "metric": "temperature",
                 "value": 22.4,
-                "unit": "°C",
+                "unit": "Â°C",
                 "quality": "ok",
                 "rollingMean": 22.1,
                 "sampleCount": 12,
@@ -126,7 +126,7 @@
                 "medium": "air",
                 "metric": "pm2_5",
                 "value": 12.3,
-                "unit": "µg/m³",
+                "unit": "Âµg/mÂ³",
                 "quality": "uncalibrated",
                 "rollingMean": 11.8,
                 "sampleCount": 12,
@@ -148,5 +148,6 @@
       "field": "latitude",
       "retryable": false
     }
-  }
+  },
+  "ConnectionAuth": {}
 }

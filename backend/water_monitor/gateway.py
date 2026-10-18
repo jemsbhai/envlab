@@ -126,11 +126,13 @@ class Gateway:
     async def authenticate(self, sid, environ, auth):
         try:
             validate("ConnectionAuth", auth)
-            hashed = hashlib.sha256(auth["token"].encode()).hexdigest()
-            found = None
-            for client in self.clients:
-                if hmac.compare_digest(hashed, client["tokenSha256"]):
-                    found = client["userId"]
+            found = "demo-ios"
+            if isinstance(auth, dict) and "token" in auth:
+                hashed = hashlib.sha256(auth["token"].encode()).hexdigest()
+                found = None
+                for client in self.clients:
+                    if hmac.compare_digest(hashed, client["tokenSha256"]):
+                        found = client["userId"]
             if found is None:
                 raise ValueError("Unauthorized")
         except (ValueError, TypeError, ValidationError, KeyError):
@@ -237,7 +239,7 @@ class Gateway:
 
     async def info(self, request):
         return web.json_response({"service": "Dewin environmental API", "mode": "live", "schemaVersion": 1,
-            "socketioPath": "/socket.io/", "namespace": "/", "authentication": "Socket.IO connect payload token",
+            "socketioPath": "/socket.io/", "namespace": "/", "authentication": "No token required; shared demo-ios identity",
             "events": ["location:update", "exposure:update", "exposure:history"], "health": "/healthz",
             "contract": "/docs/api-v1.md", "architecture": "/architecture/"})
 

@@ -2,6 +2,12 @@
 
 Download/copy the complete [sensor developer prompt](sensor-dev-prompt.md).
 
+**Current physical board:** device ID **`pico-water-01`**, publish topic
+**`env/v1/pico-water-01/telemetry`**, location ID **`demo-venue`**.
+This board is already enrolled as public. Connect to **`10.104.0.82:1883`**
+without username/password and put all readings in one packet on that topic.
+A second board needs a unique ID/topic and separate backend enrollment.
+
 The repo's earlier JSONL/Supabase contract is legacy kiosk work. For the current
 air/water exposure app, sensor nodes publish **MQTT 3.1.1** directly to the Pi.
 NATS is the MQTT broker; JetStream persists the raw packets. NEX workers process
@@ -17,8 +23,8 @@ them. Sensors do not connect to Socket.IO, Postgres, or a native NATS port.
 
 ## What the sensor owner needs
 
-1. Obtain `SENSOR_PASSWORD` privately from the backend owner. Username is `sensor`.
-   Each physical node needs a unique device ID and MQTT client ID.
+1. Omit MQTT username and password: the demo LAN broker permits anonymous
+   telemetry publishing. Each node needs a unique device ID and MQTT client ID.
 2. Connect on the event LAN to **`10.104.0.82:1883`**, MQTT **3.1.1**.
 3. Publish JSON to **`env/v1/<device_id>/telemetry`**, QoS **1**, retain **false**.
 4. Include `position.latitude`/`position.longitude` on every packet. For a fixed
@@ -32,8 +38,8 @@ them. Sensors do not connect to Socket.IO, Postgres, or a native NATS port.
 8. Register the node's identity, location, and intended owner/public visibility
    with the backend owner. Device-supplied owner/privacy claims are not trusted.
 
-Run the laptop publisher after installing `backend/requirements.txt`; provide
-the actual deployed password through the environment or a private backend `.env`:
+Run the laptop publisher after installing `backend/requirements.txt`; no MQTT
+username or password is required for this demo:
 
 ```sh
 cd backend
@@ -41,9 +47,9 @@ python scripts/publish_sensor_example.py --device-id contract-check-01
 ```
 
 This sends one **simulated** packet and waits for the MQTT publish ACK. It does
-not turn simulated values into actual sensor readings. The check's credential
-is not included in the repo. Generating fresh local passwords with `init_env.py`
-does not make those passwords valid on an already running broker.
+not turn simulated values into actual sensor readings. Anonymous MQTT can only
+publish `env/v1/<device_id>/telemetry`; it cannot subscribe to users' data. The
+previous `sensor` login remains optional for existing clients.
 
 ## Compatibility and deployment boundary
 
@@ -64,7 +70,7 @@ backend acceptance test separately checks validation and durable raw storage.
 > Read `AGENTS.md`, `docs/sensor-agent-handoff.md`,
 > `backend/docs/pico-contract.md`, the telemetry JSON Schema, and the complete
 > synthetic packet. Implement MQTT 3.1.1 publishing at `10.104.0.82:1883` with
-> credentials supplied privately, QoS 1, no retain, and topic
+> no username/password, QoS 1, no retain, and topic
 > `env/v1/<device_id>/telemetry`. Include configured sensor coordinates on every
 > packet and air/water medium, units, and quality for each reading. Preserve
 > source time, per-boot identity, and sequence across retries; reconnect with

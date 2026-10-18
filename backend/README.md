@@ -10,6 +10,12 @@ The real gateway is deployed and verified at `https://dewin-api.cbnsndwch.dev`.
 and their limits. Home Assistant is stopped, with its saved volume
 preserved. The current runtime does not write a SQLite exposure archive.
 
+**Demo connections require no credentials.** The app connects with no auth
+payload (or `{}`) and uses shared identity `demo-ios`. Anonymous phones share
+its history, live results, and private demo sensor access. Optional valid tokens
+still select separate identities; an explicitly invalid token is rejected.
+Sensors omit MQTT username/password and can publish telemetry only on the LAN.
+
 ```text
 Pico / simulator -- MQTT 3.1.1 --> ENV_RAW (JetStream)
                                           |
@@ -43,17 +49,18 @@ where Docker requires root, prefix Docker commands with `sudo -n`.
 two personal demo API tokens, writes their SHA-256 hashes into
 `.runtime/api-clients.json`, and creates `.runtime/devices.json` only if absent.
 Both runtime files and `.env` are ignored by Git. The plaintext app tokens are
-`API_DEMO_TOKEN` for `demo-ios` and `API_SECOND_TOKEN` for `demo-other`; hand them
-out privately. The gateway reads hashes, not these plaintext token variables.
-Do not run initialization on the deployed Pi when its plaintext app tokens have
-deliberately been withheld: that would generate different token hashes.
+`API_DEMO_TOKEN` for `demo-ios` and `API_SECOND_TOKEN` for `demo-other`; these are
+optional identity overrides for tests or separate sessions. They are not needed
+for the shared demo. The gateway reads hashes, not plaintext token variables.
+Initialization preserves an existing client registry; keep optional plaintext
+tokens and management credentials private.
 
 The default local API is `http://127.0.0.1:8765`, Socket.IO path `/socket.io/`,
 namespace `/`, Engine.IO 4. MQTT listens on port 1883; Core NATS 4222, monitoring
 8222, and the API bind to host loopback. Override `MQTT_PORT`, `NATS_PORT`,
 `MONITOR_PORT`, or `API_HOST_PORT` in `.env` if occupied. Browser origins use the
-gateway's `API_ALLOWED_ORIGINS` setting; native iOS still authenticates with its
-personal token. The Compose service does not publish the API directly to the LAN.
+gateway's `API_ALLOWED_ORIGINS` setting. Native iOS connects without a login or
+token for the shared demo. The Compose service does not publish the API directly to the LAN.
 
 ## Device enrollment and demo data
 
@@ -80,8 +87,9 @@ recreation; disconnect existing sessions when revoking a credential.
 The simulator publishes every five seconds at `25.7617, -80.1918`. Its water
 temperature and air humidity are synthetic demonstration values, with humidity
 marked uncalibrated. The example registry enrolls `sim-pico-01` and `sim-pico-02`
-as public, and `sim-pico-03` as private to `demo-ios`. The second demo user cannot
-see that private device. Real hardware must use different IDs and be enrolled.
+as public, and `sim-pico-03` as private to `demo-ios`. All anonymous app clients
+share `demo-ios` access. A valid optional token for the second demo identity
+cannot see that private device. Real hardware needs different IDs and enrollment.
 
 ```sh
 docker compose stop simulator

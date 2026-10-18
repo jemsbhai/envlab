@@ -5,7 +5,14 @@ ARM64 image `water-monitor:gateway`. On 18 October 2026, the real integration
 check passed through `https://dewin-api.cbnsndwch.dev`, backed by NATS/JetStream.
 The origin is healthy and the named tunnel routes the API to localhost 8765.
 
-The public check verified invalid-token rejection, WebSocket and polling,
+**Current demo connection mode:** Socket.IO needs no token or login UI; omit
+auth or send `{}` to use shared identity `demo-ios`. All anonymous phones share
+that identity's live updates, history, and private demo sensor access. Optional
+valid tokens select separate identities; an explicitly invalid token is rejected.
+MQTT on LAN port 1883 accepts anonymous publish-only sensor telemetry with no
+username/password. Internal broker and tunnel management credentials remain.
+
+The earlier token-identity public check verified invalid-token rejection, WebSocket and polling,
 persisted location ACKs, identical retries and conflicts, live simulated
 air/water matches, public/private isolation, no-match results, scoped paginated
 history/cursors, and reconnect recovery. The local real stack additionally
@@ -72,9 +79,10 @@ payloads provide positions, not trusted ownership.
 
 The default simulator enrollment has public `sim-pico-01` / `sim-pico-02` and
 `sim-pico-03` private to `demo-ios`. Register each real sensor's actual ID and
-intended public/private owner before expecting it in the app. The broker's
-shared demo `sensor` credential allows telemetry publishing only; it is not
-per-device identity verification.
+intended public/private owner before expecting it in the app. Anonymous MQTT
+allows publishing only `env/v1/<device_id>/telemetry`, with subscriptions denied.
+Existing optional `sensor` credentials continue to work. Device IDs are not
+per-device identity verification. Anonymous app users all share `demo-ios`.
 
 ## Deploy or update
 
