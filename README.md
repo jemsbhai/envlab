@@ -13,6 +13,7 @@ authorized readings to each user's timeline.
 | App API payloads | [Socket.IO API v1](backend/docs/api-v1.md) |
 | MQTT payloads | [Sensor MQTT v1](backend/docs/pico-contract.md) |
 | Backend / Pi operations | [Backend README](backend/README.md), [deployed Pi](backend/docs/deployment-zerod.md) |
+| Identification kiosk (card + face check-in) | [Kiosk integration](docs/kiosk-presence-integration.md): the kiosk is a Socket.IO client submitting positions for checked-in people; no backend change, no MQTT device |
 | Interactive architecture | [Live explainer](https://dewin-api.cbnsndwch.dev/architecture/), [offline HTML](backend/docs/architecture/index.html) |
 
 `AGENTS.md` directs coding agents to the same contracts. All examples/mock data
@@ -50,14 +51,18 @@ HA is stopped with its data preserved; food tracking is deferred.
 backend/   NATS/MQTT/NEX, real Socket.IO gateway, contracts, Swift starter, mock
 docs/      Team/agent handoffs and hardware documentation
 sensors/   Sensor firmware and publishing integrations (teammates)
-pi/        Existing face-check-in kiosk prototype
-nano/      Existing RC522/card-reader prototype
+pi/        Identification kiosk: face check, card sessions, Dewin presence client, Supabase record
+nano/      RC522 card reader firmware (Nano 33 IoT), tamper telemetry
+tools/     Laptop helpers (spoken kiosk feedback)
 ```
 
-The previous JSONL/Supabase/kiosk architecture is preserved in
-[kiosk prototype notes](docs/kiosk-prototype.md). Its source is retained under
-`pi/` and `nano/`. It is not the current sensor/app data contract; new sensor
-integration publishes MQTT using the contract linked above.
+The kiosk feeds the same pipeline as a phone: while a person is checked in, it
+submits `location:update` for them at its configured coordinates (see
+[kiosk integration](docs/kiosk-presence-integration.md)). Its original standalone
+design, with the JSONL/Supabase visit record, is kept in
+[kiosk prototype notes](docs/kiosk-prototype.md); that record is the kiosk's own
+and is not a sensor/app data contract. Sensor integration publishes MQTT using
+the contract linked above.
 
 Built at a hardware hackathon, October 2026. Hobby-grade sensor values describe
 measurements; they do not establish health or drinking-water safety.

@@ -1,81 +1,70 @@
-# Kiosk presence integration with Dewin
+# Identification kiosk: how it plugs into Dewin
 
-Status, 18 October 2026: implemented in `pi/dewin_presence.py`, verified end to end against the
-local mock gateway (`backend/scripts/mock_api.py`). Waiting on two things from the backend owner:
-per-user tokens for the enrolled people, and the real gateway URL once it is deployed.
+Owner: Muntaser. Code: `pi/` (kiosk) and `nano/` (card reader). Status, 18 October 2026, 17:00:
+verified end to end against the live gateway at `https://dewin-api.cbnsndwch.dev` with the shared
+demo token. Nothing on the backend needs to change for the demo. Section 3 lists the one thing that
+would make it better.
 
-## What the kiosk is in the Dewin architecture
+## 1. What the kiosk is, in one paragraph
 
-Dewin attaches nearby sensor readings to a user's timeline from positions the user's phone submits
-over Socket.IO (`location:update`). The kiosk is a second position source for the same pipeline:
-a person without a phone, or indoors without a GPS fix, taps their card and shows their face, and
-for as long as they are checked in the kiosk submits `location:update` events on their behalf at the
-kiosk's configured WGS84 coordinates, every five seconds, using that person's own personal API token.
-The backend does what it does for a phone: spatial join against registered sensors within
-`matchRadiusM`, and `exposure:update` records come back to the kiosk's socket for that user.
+A Raspberry Pi 5 with a camera and an RC522 card reader. A person taps their card and shows their face;
+the kiosk verifies the face against the template bound to that card (one-to-one match, no gallery
+search) and opens a session. A second tap closes it. While the session is open the kiosk acts as that
+person's phone: it connects to the Socket.IO gateway and submits `location:update` every five seconds
+at the kiosk's configured coordinates, exactly as the iOS app does. The backend answers with
+`exposure:update`, which the kiosk logs per person. That is the whole integration: the kiosk is an
+ordinary app client, and the API is unchanged.
 
-Nothing in the API changes. The kiosk is an ordinary Socket.IO client acting for the checked-in user.
-No user ID is sent; the server derives it from the token, exactly as for the app. Card UIDs, face
-templates and check-in events never leave the kiosk.
+Card UIDs, face templates, names and check-in events never leave the kiosk. Only positions and the
+connect token go to the gateway.
 
-## Data flow
+## 2. What the backend sees from the kiosk
 
-```text
-card tap + face match  (tapwatch.py)  -->  ~/envlab/sessions.json  {person_id: {uid, start}}
-                                                   |
-                                   dewin_presence.py (one Socket.IO connection per checked-in person)
-                                                   |
-                       location:update every 5 s at (KIOSK_LAT, KIOSK_LON, KIOSK_ACCURACY_M)
-                                                   |
-                       exposure:update  -->  ~/envlab/dewin_exposure.jsonl  (the person's exposure record)
-check-out tap  -->  session removed  -->  that person's connection is closed
-```
+- Socket.IO connections to `/socket.io/`, namespace `/`, auth `{"token": "0"}` for now, one socket per
+  checked-in person. With five people checked in there are five sockets from the Pi's address, all
+  under the shared `demo-ios` identity until personal tokens exist.
+- `location:update` from each socket every 5 s: `latitude 25.7617, longitude -80.1918, accuracyM 5`
+  (the kiosk's configured position; it never moves), `measuredAt` from the Pi's NTP clock, a fresh UUID
+  `eventId` per event. Retries after a lost ACK reuse the same `eventId` and payload, so `duplicate:
+  true` answers are expected and handled.
+- Sockets close on check-out. Nothing is retained on the MQTT side; the kiosk publishes no telemetry
+  and has no device to enroll.
 
-Retry semantics follow the contract: a submission that gets no ACK is retried with the same `eventId`
-and identical payload; the server answers `duplicate: true` for an already stored event. Events wait
-in a bounded per-user queue while the gateway is unreachable; the two-per-second limit is respected
-when a backlog drains.
+The kiosk filters `exposure:update` by `locationEventId` against the events it submitted, so the fact
+that every `demo-ios` client receives every record is harmless on our side.
 
-## Configuration on the kiosk Pi
+## 3. What would improve it: one token per person
 
-`~/envlab/.env` (see `pi/envlab.env.example`):
+Enrolled ids on the kiosk: `joe`, `katiana`, `muntaser`, `serge`, `vincent`. If the backend issues one
+personal token per id (shared privately, same mechanism as app tokens), the kiosk uses them instead of
+`0` by editing one file on the Pi (`~/envlab/dewin_tokens.json`, not in git) and each person's history
+becomes their own on the backend. No code change on either side. Until then, all kiosk check-ins land
+on `demo-ios`.
 
-```text
-DEWIN_API_URL=http://127.0.0.1:8765    # mock today; the deployed gateway URL when it exists
-KIOSK_LAT=25.7617                      # installed position of this kiosk, WGS84
-KIOSK_LON=-80.1918
-KIOSK_ACCURACY_M=5
-DEWIN_INTERVAL_S=5
-```
+If holding personal tokens on a shared kiosk is not acceptable, the alternative is a kiosk-scoped token
+plus a server-side mapping from a kiosk-supplied person id to a user, with a new event such as
+`presence:update`. That is an API change; it is not implemented and not needed for the demo.
 
-`~/envlab/dewin_tokens.json`, never committed: `{"<person_id>": "<personal api token>", ...}`,
-keyed by the same person ids used by `facekit.py enroll` and `tapwatch.py --bind`.
+## 4. Coordinates
 
-Run alongside the kiosk and the uplink:
+The kiosk position is configuration (`KIOSK_LAT`, `KIOSK_LON` in the Pi's `.env`). It is set to the demo
+coordinates so the simulated sensors match. If the kiosk is placed next to a real enrolled sensor node,
+set it to that node's coordinates; the spatial join uses `matchRadiusM` 100, so anything within the
+room matches.
+
+## 5. Running it (kiosk owner)
 
 ```bash
-python3 ~/envlab/repo/pi/tapwatch.py          # kiosk
-python3 ~/envlab/repo/pi/dewin_presence.py    # presence -> Dewin
-python3 ~/envlab/repo/pi/cloudsync.py         # optional: the kiosk's own Supabase record (legacy path)
+python3 ~/envlab/repo/pi/tapwatch.py          # kiosk: tap + face -> sessions.json, events.jsonl
+python3 ~/envlab/repo/pi/dewin_presence.py    # presence: sessions.json -> location:update per person
+python3 ~/envlab/repo/pi/cloudsync.py         # optional: the kiosk's own visit record in Supabase
 ```
 
-Against the mock, use its dev tokens (`dev-only-alice-token`, `dev-only-bob-token`) and the fixture
-coordinates above so the synthetic `pico-01` sensor is within range.
+`~/envlab/.env` carries `DEWIN_API_URL`, `KIOSK_LAT`, `KIOSK_LON`, `KIOSK_ACCURACY_M`, `DEWIN_INTERVAL_S`
+(see `pi/envlab.env.example`). `~/envlab/dewin_tokens.json` maps person id to token.
 
-## Open points for the backend owner
+## 6. Not changed
 
-1. Tokens. The kiosk needs one personal token per enrolled person. For the demo these can be issued
-   like app tokens and shared privately. If holding user tokens on a shared kiosk is not acceptable,
-   the alternative is a kiosk-scoped token plus a server-trusted binding from card UID to user, with a
-   new `presence:update` event; that is an API change and is not implemented here.
-2. Gateway URL. `DEWIN_API_URL` switches from the mock to the deployed gateway with no code change.
-3. Sensor registration. The kiosk itself publishes no air or water telemetry today (its Nano 33 IoT
-   carries only an IMU, used for reader tamper detection). If a DHT11 or other environmental sensor is
-   attached to the kiosk, it will publish MQTT per `backend/docs/pico-contract.md` as `kiosk-pi5-01`
-   with the kiosk coordinates and must be registered like any other node.
-
-## Not changed
-
-`pi/cloudsync.py` and the Supabase schema remain as the kiosk's own visit record and the local demo
-path; they are not a sensor-to-app transport and `sensors.jsonl` is no longer the contract sensor
-teammates write to. Sensor firmware publishes MQTT per the backend contract.
+`pi/cloudsync.py` and the Supabase schema remain the kiosk's own visit record and the local demo path.
+They are not a sensor-to-app transport, and `sensors.jsonl` is not a contract anyone writes to. Sensor
+firmware publishes MQTT per `backend/docs/pico-contract.md`.
