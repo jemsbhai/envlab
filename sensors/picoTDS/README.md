@@ -17,3 +17,7 @@ Start with [the sensor agent handoff](../docs/sensor-agent-handoff.md) and
 Keep one folder per node, such as `pico_water/` or `uno_r4_air/`. Driver choices
 remain with the firmware owner. Use the shared JSON fixture and publisher smoke
 test to check the transport before attaching real sensors.
+
+## PicoTDS
+
+PicoTDS is a Raspberry Pi Pico W project for reading TDS (Total Dissolved Solids) measurements. See [PicoTDS README](picotds/README.md) for full documentation.

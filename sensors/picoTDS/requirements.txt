@@ -1,0 +1,12 @@
+# Development tools for host machine (not for Pico W)
+# Install with: pip install -r requirements.txt
+
+# File transfer to Pico
+rshell>=1.4.0
+
+# For future development (optional)
+pyserial>=3.5
+
+# Note: umqtt.simple must be installed on the Pico W itself
+# Install via Thonny: Tools → Manage Packages → umqtt.simple
+# Or via rshell: import mip; mip.install("umqtt.simple")
