@@ -78,6 +78,7 @@ class UserPresence:
     def __init__(self, pid, token, cfg):
         self.pid, self.token, self.cfg = pid, token, cfg
         self.queue = deque(maxlen=720)        # about an hour of 5 s events while offline
+        self.submitted = deque(maxlen=2000)    # eventIds this person's kiosk session submitted
         self.last_created = 0.0
         self.last_connect_attempt = 0.0
         self.sio = socketio.Client(reconnection=True, reconnection_delay=1, reconnection_delay_max=30)
@@ -102,6 +103,10 @@ class UserPresence:
             pass
 
     def on_exposure(self, data):
+        # With the shared demo identity every connected client receives every exposure:update,
+        # so keep only the records that answer this person's own location events.
+        if data.get("locationEventId") not in self.submitted:
+            return
         rec = {"ts": round(time.time(), 3), "person_id": self.pid, **data}
         append_line(EXPOSURE_LOG, rec)
         sensors = data.get("sensors") or []
@@ -118,9 +123,11 @@ class UserPresence:
         interval = float(cfg["DEWIN_INTERVAL_S"])
         if time.time() - self.last_created >= interval:
             self.last_created = time.time()
+            event_id = str(uuid.uuid4())
+            self.submitted.append(event_id)
             self.queue.append({
                 "schemaVersion": 1,
-                "eventId": str(uuid.uuid4()),
+                "eventId": event_id,
                 "measuredAt": now_iso(),
                 "latitude": float(cfg["KIOSK_LAT"]),
                 "longitude": float(cfg["KIOSK_LON"]),
