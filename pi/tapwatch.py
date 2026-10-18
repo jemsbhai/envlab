@@ -165,6 +165,9 @@ def main():
                                "frames": n, "with_face": seen})
                     print(f"  NO MATCH {best:.3f} (face seen in {seen}/{n} frames): card holder is not {pid}")
 
+            elif t == "rc522_reinit":
+                print(f"!! reader re-initialised ({msg.get('reason')}), version {msg.get('rc522_version')}")
+                log_event({"type": "rc522_reinit", **msg})
             elif t in ("ack", "error"):
                 print(f"[node] {raw}")
     except KeyboardInterrupt:
