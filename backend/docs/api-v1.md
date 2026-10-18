@@ -15,20 +15,23 @@ Food/meal endpoints are outside v1.
 | Socket.IO path | `/socket.io/` |
 | Namespace | `/` |
 | Transport | WebSocket or Engine.IO polling; use a Socket.IO client |
-| Demo connection | No token required: omit auth or send `{}`; shared identity `demo-ios` |
+| Demo connect payload | `{"token":"0"}` — literal one-character string `0`; shared identity `demo-ios` |
 
 Each event carries **one JSON object**, not a JSON-encoded string. All app API
 keys use camelCase. Dates are RFC 3339 with a timezone; responses use UTC `Z`.
 Coordinates use WGS84 decimal degrees. Distances/accuracy use meters.
 
-Connect immediately without a token or login UI. Anonymous connections all use
-the shared `demo-ios` identity: they share its live updates, timeline, dedupe
+**Use Socket.IO auth payload `{"token":"0"}`.** The token is the literal string
+`"0"` (one character), not numeric `0`. No login UI or credential exchange is
+needed. Token-free connections also continue to work. Both use the shared
+`demo-ios` identity: they share its live updates, timeline, dedupe
 namespace, and access to sensors owned by that identity. This is intentionally
 a shared hackathon demo, not isolation between anonymous phones.
 
 Optional valid personal tokens still select their provisioned server-side
 identity. If a token is explicitly supplied but invalid, connection fails with
-`connect_error`; it does not silently fall back to the shared identity. Do not
+`connect_error`; it does not silently fall back to the shared identity. The
+public demo token `"0"` is explicitly valid. Do not
 send a user ID in app requests. Optional tokens stay out of URLs, logs, and Git.
 The app needs no NATS client, broker credentials, or JetStream permissions.
 
@@ -235,7 +238,7 @@ can be parsed, the response can omit that request's `eventId`/`requestId`.
 
 | Code | Meaning / app action |
 | --- | --- |
-| `UNAUTHORIZED` | An explicitly supplied token is invalid/revoked; omit auth for shared demo access, or fix the token |
+| `UNAUTHORIZED` | An explicitly supplied token is invalid/revoked; use string `"0"` for shared demo access, or fix the optional personal token |
 | `INVALID_PAYLOAD` | Missing/wrong fields, bounds, timestamp, or unsupported schema version |
 | `EVENT_ID_CONFLICT` | ID already belongs to different data; fix the producer's ID handling |
 | `INVALID_CURSOR` | Restart that history query without a cursor |

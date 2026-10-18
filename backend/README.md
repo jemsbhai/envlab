@@ -10,8 +10,9 @@ The real gateway is deployed and verified at `https://dewin-api.cbnsndwch.dev`.
 and their limits. Home Assistant is stopped, with its saved volume
 preserved. The current runtime does not write a SQLite exposure archive.
 
-**Demo connections require no credentials.** The app connects with no auth
-payload (or `{}`) and uses shared identity `demo-ios`. Anonymous phones share
+**App demo token: `"0"`.** Connect Socket.IO with `{"token":"0"}`; it is a
+one-character string, not numeric zero. No secret handoff or login UI is needed.
+Token-free connections also work. Both use shared identity `demo-ios` and share
 its history, live results, and private demo sensor access. Optional valid tokens
 still select separate identities; an explicitly invalid token is rejected.
 Sensors omit MQTT username/password and can publish telemetry only on the LAN.
@@ -59,8 +60,8 @@ The default local API is `http://127.0.0.1:8765`, Socket.IO path `/socket.io/`,
 namespace `/`, Engine.IO 4. MQTT listens on port 1883; Core NATS 4222, monitoring
 8222, and the API bind to host loopback. Override `MQTT_PORT`, `NATS_PORT`,
 `MONITOR_PORT`, or `API_HOST_PORT` in `.env` if occupied. Browser origins use the
-gateway's `API_ALLOWED_ORIGINS` setting. Native iOS connects without a login or
-token for the shared demo. The Compose service does not publish the API directly to the LAN.
+gateway's `API_ALLOWED_ORIGINS` setting. Native iOS sends `{"token":"0"}` for
+the shared demo, without a login UI. The Compose service does not publish the API directly to the LAN.
 
 ## Device enrollment and demo data
 

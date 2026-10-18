@@ -16,8 +16,9 @@ authorized readings to each user's timeline.
 | Interactive architecture | [Live explainer](https://dewin-api.cbnsndwch.dev/architecture/), [offline HTML](backend/docs/architecture/index.html) |
 
 `AGENTS.md` directs coding agents to the same contracts. All examples/mock data
-are synthetic. The demo app and sensor MQTT publisher connect without tokens
-or passwords. Management credentials remain private and must never be committed.
+are synthetic. The app sends demo auth `{"token":"0"}` (string `"0"`);
+sensor MQTT needs no username/password. No secret exchange is needed.
+Management credentials remain private and must never be committed.
 
 ## Current architecture and status
 
@@ -32,8 +33,8 @@ The MQTT broker, JetStream, NEX, and simulator run on the existing Debian Pi at
 `10.104.0.82`. The real Socket.IO gateway and NEX spatial worker are deployed
 and verified through the public Cloudflare endpoint. See the
 [Pi operating notes](backend/docs/deployment-zerod.md) for validation details.
-The live API is `https://dewin-api.cbnsndwch.dev`; omit auth to use the shared
-`demo-ios` identity. All anonymous phones share its timeline and live results.
+The live API is `https://dewin-api.cbnsndwch.dev`; connect with `{"token":"0"}`
+to use shared identity `demo-ios`. All demo phones share its timeline and live results.
 Optional valid tokens still select separate identities. MQTT sensors omit
 username/password on the demo LAN. A local mock is also available. JetStream streams/KV store
 positions, deduplication receipts, and exposure history; application workers

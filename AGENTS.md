@@ -29,8 +29,9 @@ the old SQLite/HA path. Device visibility and owner come from the backend's
 private registry. Unregistered devices must not appear in app results. Label
 all simulated observations and preserve event-time matching on replay.
 
-Current hackathon connection mode: Socket.IO without auth uses shared identity
-`demo-ios`; no login UI or token handoff is needed. Anonymous phones share that
+Current hackathon app connection: Socket.IO auth `{"token":"0"}`, literal
+one-character string `"0"`, uses shared identity `demo-ios`. Token-free connections
+also work. No login UI or secret handoff is needed. Demo phones share that
 identity's history and live results. Optional valid tokens retain separate
 identities; explicitly invalid tokens fail. Sensor MQTT on LAN port 1883 accepts
 anonymous publish-only telemetry with no username/password. Keep management

@@ -90,7 +90,7 @@ def create_app():
     async def connect(sid, environ, auth):
         try:
             validate("ConnectionAuth", auth)
-            user = TOKENS.get(auth["token"]) if isinstance(auth, dict) and "token" in auth else "alice"
+            user = TOKENS.get(auth["token"]) if isinstance(auth, dict) and "token" in auth and auth["token"] != "0" else "alice"
         except (ValidationError, ValueError, TypeError):
             user = None
         if user is None:

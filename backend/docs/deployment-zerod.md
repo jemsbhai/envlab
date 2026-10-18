@@ -5,8 +5,10 @@ ARM64 image `water-monitor:gateway`. On 18 October 2026, the real integration
 check passed through `https://dewin-api.cbnsndwch.dev`, backed by NATS/JetStream.
 The origin is healthy and the named tunnel routes the API to localhost 8765.
 
-**Current demo connection mode:** Socket.IO needs no token or login UI; omit
-auth or send `{}` to use shared identity `demo-ios`. All anonymous phones share
+**Current app demo connection:** Socket.IO auth `{"token":"0"}`, where the
+token is the literal one-character string `"0"`, selects shared identity
+`demo-ios`. No secret exchange or login UI is needed; token-free connections
+also work. All demo phones share
 that identity's live updates, history, and private demo sensor access. Optional
 valid tokens select separate identities; an explicitly invalid token is rejected.
 MQTT on LAN port 1883 accepts anonymous publish-only sensor telemetry with no

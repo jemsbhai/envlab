@@ -207,6 +207,7 @@ async def run(args):
     alice = DemoClient(args.url, token, "websocket")
     bob = DemoClient(args.url, other_token, "polling")
     anonymous = DemoClient(args.url, None, "websocket")
+    zero_token = DemoClient(args.url, "0", "websocket")
     started = datetime.now(timezone.utc) - timedelta(seconds=2)
     baseline = None
     expected = set()
@@ -308,11 +309,22 @@ async def run(args):
         require(anonymous_result["exposureId"] not in {x["exposureId"] for x in other_history},
                 "Anonymous shared demo history crossed into the optional separate user")
         print("PASS tokenless app connection, persisted position, live enrichment, and shared demo-ios history")
+        await rejected_auth(args.url, {"token": 0})
+        await zero_token.connect()
+        zero_history = await pages(zero_token, {**query, "limit": 100})
+        require(expected <= {x["locationEventId"] for x in zero_history},
+                "String-zero demo token did not use shared demo-ios history")
+        zero_retry = await zero_token.call("location:update", anonymous_position)
+        validate("LocationAck", zero_retry)
+        require(zero_retry["duplicate"] and zero_retry["receivedAt"] == anonymous_ack["receivedAt"],
+                "String-zero demo token used a different location receipt identity")
+        print("PASS string-zero demo token, shared identity/history/receipt, and numeric-zero rejection")
         if args.restarts:
             if not args.broker_only_restart:
                 await alice.close()
                 await bob.close()
                 await anonymous.close()
+                await zero_token.close()
             before = await process_identity(args) if args.broker_only_restart else None
             await restart_services(args)
             await health(args.url, args.ready_timeout)
@@ -336,6 +348,7 @@ async def run(args):
         await alice.close()
         await bob.close()
         await anonymous.close()
+        await zero_token.close()
 
 
 if __name__ == "__main__":

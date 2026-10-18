@@ -20,16 +20,17 @@ isolated app development.
 | Base URL | `https://dewin-api.cbnsndwch.dev` |
 | Socket.IO path / namespace | `/socket.io/` / `/` |
 | Protocol | Socket.IO 4 / Engine.IO 4 |
-| Connect payload | Omit auth or send `{}`; no token/login required |
+| Connect payload | `{"token":"0"}` — token is the literal one-character string `0` |
 | App events | `location:update`, `exposure:update`, `exposure:history` |
 
-Connect without a login UI or token. The server assigns all anonymous app
-connections to shared identity `demo-ios`. These phones share live updates,
+**Connect with auth payload `{"token":"0"}`.** Use string `"0"`, not numeric
+`0`. This is a public demo value; no secret or login UI is needed. Token-free
+connections still work. These demo connections share identity `demo-ios`, live updates,
 history, and access to that identity's private demo sensor. They are not isolated
 from each other. Do not send a user ID in location or history requests.
 
 An optional valid token selects its separate provisioned identity. An explicitly
-supplied invalid token is rejected; omit auth for shared demo access. Keep any
+supplied invalid token is rejected; use `"0"` for shared demo access. Keep any
 optional token out of query strings, logs, and source control.
 Use a Socket.IO client, not URLSessionWebSocketTask with plain JSON frames or a
 NATS client. The former `dewin-events.cbnsndwch.dev` route is retired.
@@ -146,8 +147,9 @@ Handle connection failure separately from request error ACKs and timeouts.
 > `backend/docs/api-v1.md`. Integrate the iOS app with the official Swift
 > Socket.IO client using the three defined events. Use the JSON fixtures for
 > typed decoding tests. The real base URL is https://dewin-api.cbnsndwch.dev,
-> path /socket.io/, namespace /, Engine.IO 4. Connect with no auth payload or {};
-> no token or login UI is required. Anonymous phones share demo-ios history and
+> path /socket.io/, namespace /, Engine.IO 4. Connect with auth {"token":"0"};
+> the token is the literal one-character STRING "0", not numeric 0. No secret
+> or login UI is needed. Demo phones share demo-ios history and
 > live results. Optional valid tokens select separate identities. The API is live;
 > the local mock is available for isolated live/ACK/history integration.
 > Make the base URL configurable and any token optional, retain the SocketManager,

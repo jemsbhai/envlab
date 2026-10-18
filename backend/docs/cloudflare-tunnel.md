@@ -13,7 +13,8 @@ https://dewin-api.cbnsndwch.dev
 The API is deployed and passed real public end-to-end integration checks on
 18 October 2026; see [validation details](deployment-zerod.md). The route carries Socket.IO 4 /
 Engine.IO 4, including WebSocket transport and polling. The current demo needs
-no token: omit auth or send `{}` to share identity `demo-ios`. Optional valid
+no secret: send auth `{"token":"0"}` (literal string `"0"`) to share identity
+`demo-ios`. Token-free connections also work. Optional valid
 tokens still select separate identities. It does not expose native NATS or MQTT.
 The old `dewin-events.cbnsndwch.dev` NATS-over-WebSocket ingress rule was removed
 at the cutover; the hostname receives the 404 catch-all.
@@ -86,7 +87,7 @@ check. A Cloudflare HTTP 200 alone does not establish authenticated API operatio
 Test that the old public NATS hostname no longer provides a NATS connection.
 
 Browser origin restrictions belong to `API_ALLOWED_ORIGINS` in the gateway.
-Native iOS needs no token for the shared demo. The old NATS WebSocket origin
+Native iOS uses demo token string `"0"`; token-free access also works. The old NATS WebSocket origin
 allowlist in `deploy/nats.conf` does not control this Socket.IO route.
 
 ## Revoke or retire

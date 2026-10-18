@@ -127,7 +127,7 @@ class Gateway:
         try:
             validate("ConnectionAuth", auth)
             found = "demo-ios"
-            if isinstance(auth, dict) and "token" in auth:
+            if isinstance(auth, dict) and "token" in auth and auth["token"] != "0":
                 hashed = hashlib.sha256(auth["token"].encode()).hexdigest()
                 found = None
                 for client in self.clients:
@@ -239,7 +239,7 @@ class Gateway:
 
     async def info(self, request):
         return web.json_response({"service": "Dewin environmental API", "mode": "live", "schemaVersion": 1,
-            "socketioPath": "/socket.io/", "namespace": "/", "authentication": "No token required; shared demo-ios identity",
+            "socketioPath": "/socket.io/", "namespace": "/", "authentication": "Demo token: 0; shared demo-ios identity",
             "events": ["location:update", "exposure:update", "exposure:history"], "health": "/healthz",
             "contract": "/docs/api-v1.md", "architecture": "/architecture/"})
 

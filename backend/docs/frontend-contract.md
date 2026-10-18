@@ -5,7 +5,7 @@
 [the deployment notes](deployment-zerod.md) for verified status. This document
 records the earlier NATS socket, retired at the API cutover. Its instructions
 below are historical; do not use them as the current app API or re-enable a
-public native-NATS sensor feed. The current Socket.IO demo needs no token and
+public native-NATS sensor feed. The current Socket.IO demo uses auth `{"token":"0"}` and
 shares identity `demo-ios` across anonymous phones; see its canonical contract.
 
 The previous public endpoint was **`wss://dewin-events.cbnsndwch.dev`**.

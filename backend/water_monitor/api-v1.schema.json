@@ -84,13 +84,20 @@
       ],
       "properties": {
         "token": {
-          "type": "string",
-          "minLength": 16,
-          "maxLength": 512
+          "anyOf": [
+            {
+              "const": "0"
+            },
+            {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 512
+            }
+          ]
         }
       },
       "additionalProperties": false,
-      "description": "Omit auth, send null, or send {} for the shared demo-ios identity. A supplied token optionally selects another configured identity."
+      "description": "Use {\"token\":\"0\"} for the shared demo-ios identity. Omitted/null/empty auth also works; a configured personal token optionally selects another identity."
     },
     "LocationUpdate": {
       "type": "object",
