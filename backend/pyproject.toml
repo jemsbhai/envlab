@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "team-zero-water-monitor"
+version = "0.1.0"
+description = "Pico MQTT to JetStream to Home Assistant, supervised by NEX"
+requires-python = ">=3.11"
+dynamic = ["dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+include = ["water_monitor*"]
+
+[tool.setuptools.package-data]
+water_monitor = ["telemetry.schema.json"]

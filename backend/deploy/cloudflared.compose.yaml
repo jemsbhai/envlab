@@ -1,0 +1,21 @@
+name: dewin-tunnel
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.1
+    user: "${TUNNEL_UID:-1000}:${TUNNEL_GID:-1000}"
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ../.runtime/cloudflared.yml:/etc/cloudflared/config.yml:ro
+    secrets:
+      - tunnel_credentials
+    mem_limit: 128m
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+
+secrets:
+  tunnel_credentials:
+    file: ../.runtime/cloudflare-tunnel.json

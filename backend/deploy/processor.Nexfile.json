@@ -1,0 +1,11 @@
+{
+  "name": "water-processor",
+  "description": "Persist and process Pico telemetry; publish Home Assistant discovery and state",
+  "type": "native",
+  "lifecycle": "service",
+  "start_request": {
+    "uri": "file:///usr/local/bin/python3.13",
+    "argv": ["-m", "water_monitor.worker"],
+    "environment": {}
+  }
+}

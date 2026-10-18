@@ -1,0 +1,29 @@
+name: water-management
+
+services:
+  portainer:
+    image: portainer/portainer-ce:2.45.2
+    command:
+      - --http-disabled
+      - --admin-password-file=/run/secrets/admin_password
+      - -H
+      - unix:///var/run/docker.sock
+    restart: unless-stopped
+    ports:
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    secrets:
+      - admin_password
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "2"}
+
+secrets:
+  admin_password:
+    file: ../.runtime/portainer-admin-password
+
+volumes:
+  portainer_data:
