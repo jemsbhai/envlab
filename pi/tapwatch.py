@@ -152,6 +152,7 @@ def main():
                     print(f"card {uid}: {pid} checked OUT after {dur / 60:.1f} min")
                     continue
                 print(f"card {uid}: {pid}, look at the camera...")
+                log_event({"type": "tap", "uid": uid, "id": pid})  # drives the display's "look at the camera" screen
                 best, n, seen = verify_live(cam, det, rec, pid, args.seconds)
                 ok = best >= fk.COS_THRESH
                 if ok:

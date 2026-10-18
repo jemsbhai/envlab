@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Dewin kiosk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0B0F1A; --panel: #121a2b; --panel2: #18233a; --line: #243049;
+    --fg: #F2F4F7; --muted: #9aa4b2; --dim: #6b7585;
+    --teal: #5EEAD4; --sky: #BAE6FD; --red: #FB7185; --amber: #FBBF24; --green: #86EFAC;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); overflow: hidden; cursor: none;
+    font-family: Inter, "Noto Sans", "DejaVu Sans", system-ui, sans-serif; }
+  body { display: grid; grid-template-rows: 7.5vh 1fr 9vh; height: 100vh; }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 0 2.2vw; border-bottom: 1px solid var(--line); }
+  header img { height: 4.8vh; }
+  .hright { display: flex; align-items: center; gap: 2vw; font-size: 1.15vw; color: var(--muted); }
+  .dot { display: inline-block; width: 0.7vw; height: 0.7vw; border-radius: 50%; background: var(--dim); margin-right: 0.45vw; vertical-align: middle; }
+  .dot.on { background: var(--green); box-shadow: 0 0 0.6vw rgba(134,239,172,.6); }
+  .dot.warn { background: var(--amber); }
+  #clock { font-variant-numeric: tabular-nums; font-size: 1.5vw; color: var(--fg); }
+
+  main { display: grid; grid-template-columns: 38fr 62fr; gap: 1.6vw; padding: 1.6vw 2.2vw; min-height: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 1.2vw; padding: 1.6vw; min-height: 0; overflow: hidden; }
+
+  /* stage */
+  #stage { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; }
+  #stage .eyebrow { font-size: 1.1vw; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: 1vw; }
+  #stage h1 { font-size: 3.4vw; margin: 0 0 .6vw; font-weight: 700; line-height: 1.1; }
+  #stage h2 { font-size: 1.6vw; margin: 0; font-weight: 400; color: var(--muted); }
+  #stage .big { font-size: 5.2vw; font-weight: 800; color: var(--teal); margin: 1vw 0 .4vw; font-variant-numeric: tabular-nums; }
+  #stage .icon { width: 11vw; height: 11vw; margin-bottom: 1.2vw; }
+  #stage .float { animation: float 4s ease-in-out infinite; }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.2vw); } }
+  .ring { width: 11vw; height: 11vw; border-radius: 50%; border: .5vw solid var(--teal); margin-bottom: 1.4vw;
+    animation: pulse 1.2s ease-in-out infinite; display: grid; place-items: center; font-size: 4vw; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(94,234,212,.5); } 50% { box-shadow: 0 0 0 1.6vw rgba(94,234,212,0); } }
+  .ring.ok { border-color: var(--green); animation: none; color: var(--green); }
+  .ring.bad { border-color: var(--red); animation: none; color: var(--red); }
+  .ring.bye { border-color: var(--sky); animation: none; color: var(--sky); }
+  .bar { width: 60%; height: .5vw; background: var(--line); border-radius: 1vw; overflow: hidden; margin-top: 1.6vw; }
+  .bar i { display: block; height: 100%; background: var(--teal); width: 0; animation: fill 12s linear forwards; }
+  @keyframes fill { to { width: 100%; } }
+  .kv { display: grid; grid-template-columns: auto auto; gap: .5vw 2vw; margin-top: 1.6vw; font-size: 1.25vw; text-align: left; }
+  .kv b { color: var(--fg); font-weight: 600; } .kv span { color: var(--muted); }
+  .hint { position: absolute; bottom: 1.4vw; font-size: 1.05vw; color: var(--dim); }
+
+  /* venue / readings */
+  #venue { display: flex; flex-direction: column; }
+  .vhead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.2vw; }
+  .vhead h3 { margin: 0; font-size: 1.5vw; font-weight: 600; }
+  .vhead span { font-size: 1.05vw; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.1vw; flex: 1; min-height: 0; align-content: start; }
+  .m { background: var(--panel2); border: 1px solid var(--line); border-radius: 1vw; padding: 1.1vw 1.2vw; position: relative; min-height: 10.5vw; }
+  .m .lbl { font-size: 1.05vw; color: var(--muted); text-transform: capitalize; }
+  .m .val { font-size: 2.9vw; font-weight: 700; margin: .3vw 0; font-variant-numeric: tabular-nums; }
+  .m .val small { font-size: 1.2vw; color: var(--muted); font-weight: 500; margin-left: .3vw; }
+  .m .sub { font-size: .95vw; color: var(--dim); }
+  .m svg { position: absolute; right: 1vw; bottom: .9vw; width: 9vw; height: 3.2vw; opacity: .9; }
+  .m .water { color: var(--sky); } .m .air { color: var(--teal); }
+  .tag { position: absolute; top: .9vw; right: 1vw; font-size: .8vw; padding: .15vw .5vw; border-radius: .5vw; letter-spacing: .08em; text-transform: uppercase; }
+  .tag.sim { background: rgba(251,191,36,.15); color: var(--amber); border: 1px solid rgba(251,191,36,.4); }
+  .tag.unc { background: rgba(154,164,178,.12); color: var(--muted); border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 1.25vw; }
+  th { text-align: left; color: var(--muted); font-weight: 500; padding: .5vw .6vw; border-bottom: 1px solid var(--line); font-size: 1.05vw; }
+  td { padding: .7vw .6vw; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  td:first-child { text-transform: capitalize; }
+  .empty { color: var(--dim); font-size: 1.25vw; padding: 2vw; text-align: center; }
+
+  footer { display: flex; align-items: center; justify-content: space-between; padding: 0 2.2vw; border-top: 1px solid var(--line); gap: 2vw; }
+  .chips { display: flex; gap: .8vw; flex-wrap: nowrap; overflow: hidden; }
+  .chip { background: var(--panel2); border: 1px solid var(--line); border-radius: 2vw; padding: .45vw 1vw; font-size: 1.05vw; white-space: nowrap; }
+  .chip b { color: var(--teal); }
+  .ticker { color: var(--dim); font-size: .95vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; text-align: right; }
+  .alert { position: fixed; top: 8.5vh; left: 50%; transform: translateX(-50%); background: rgba(251,113,133,.15); border: 1px solid var(--red);
+    color: var(--red); padding: .6vw 1.4vw; border-radius: .8vw; font-size: 1.1vw; display: none; }
+  .alert.show { display: block; }
+</style>
+</head>
+<body data-screen="idle">
+<header>
+  <img src="brand/dewin-logo-transparent.svg" alt="Dewin">
+  <div class="hright">
+    <span id="venueName"></span>
+    <span><i class="dot" id="dReader"></i>reader</span>
+    <span><i class="dot" id="dGateway"></i>Dewin</span>
+    <span id="clock"></span>
+  </div>
+</header>
+<div class="alert" id="alert"></div>
+<main>
+  <section class="card" id="stage"></section>
+  <section class="card" id="venue"></section>
+</main>
+<footer>
+  <div class="chips" id="chips"></div>
+  <div class="ticker" id="ticker"></div>
+</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : "";
+const fmt = (v, d) => (v === null || v === undefined || isNaN(v)) ? "–" : Number(v).toFixed(d ?? (Math.abs(v) >= 100 ? 0 : 1));
+const mmss = (s) => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60); return m + ":" + String(s % 60).padStart(2, "0"); };
+const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+
+function spark(points, cls) {
+  if (!points || points.length < 2) return "";
+  const vs = points.map(p => p[1]); const lo = Math.min(...vs), hi = Math.max(...vs); const span = (hi - lo) || 1;
+  const w = 100, h = 30;
+  const pts = points.map((p, i) => `${(i / (points.length - 1) * w).toFixed(1)},${(h - 2 - (p[1] - lo) / span * (h - 4)).toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline class="${cls}" points="${pts}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+function readingCards(readings, history) {
+  if (!readings.length) return `<div class="empty">Waiting for readings near this kiosk…</div>`;
+  return `<div class="grid">` + readings.map(r => {
+    const hk = `${r.deviceId}/${r.sensorId}/${r.medium}/${r.metric}`;
+    const tag = r.source === "simulated" ? `<span class="tag sim">simulated</span>` : (r.quality === "uncalibrated" ? `<span class="tag unc">uncalibrated</span>` : "");
+    const mean = r.rollingMean != null ? `60 s mean ${fmt(r.rollingMean)} ${esc(r.unit)}` : "";
+    return `<div class="m">${tag}
+      <div class="lbl">${esc(r.label)}</div>
+      <div class="val ${esc(r.medium)}">${fmt(r.value)}<small>${esc(r.unit)}</small></div>
+      <div class="sub">${esc(r.deviceId)} · ${r.distanceM != null ? fmt(r.distanceM, 0) + " m away" : ""}${mean ? " · " + mean : ""}</div>
+      <div class="${esc(r.medium)}">${spark(history[hk] || history[r.key], r.medium)}</div>
+    </div>`;
+  }).join("") + `</div>`;
+}
+
+function exposureTable(rows, caption) {
+  if (!rows || !rows.length) return `<div class="empty">No readings were attributed to this visit yet.</div>`;
+  return `<table><thead><tr><th>${esc(caption)}</th><th>mean</th><th>min</th><th>max</th><th>samples</th></tr></thead><tbody>` +
+    rows.map(a => `<tr><td>${esc(a.label)}${a.simulated ? ' <span class="tag sim" style="position:static">simulated</span>' : ""}</td>
+      <td>${fmt(a.mean)} ${esc(a.unit)}</td><td>${fmt(a.min)}</td><td>${fmt(a.max)}</td><td>${a.n}</td></tr>`).join("") + `</tbody></table>`;
+}
+
+function render(s) {
+  document.body.dataset.screen = s.screen;
+  $("venueName").textContent = s.venue_name || "";
+  $("dReader").className = "dot " + (s.reader_online ? "on" : "warn");
+  $("dGateway").className = "dot " + (s.venue && s.venue.connected ? "on" : "warn");
+  const focus = s.focus ? cap(s.focus) : "";
+  const person = (s.people || []).find(p => p.id === s.focus) || (s.people || [])[0];
+  let stage = "", venue = "";
+  const liveVenue = `<div class="vhead"><h3>Live at this venue</h3><span>${s.venue && s.venue.age_s != null ? "updated " + fmt(s.venue.age_s, 0) + " s ago" : "no data yet"}</span></div>` +
+    readingCards((s.venue && s.venue.readings) || [], (s.venue && s.venue.history) || {});
+
+  switch (s.screen) {
+    case "verifying":
+      stage = `<div class="ring">◉</div><div class="eyebrow">Card accepted</div><h1>Hi, ${esc(focus)}</h1><h2>Look at the camera</h2><div class="bar"><i></i></div>`;
+      venue = liveVenue; break;
+    case "welcome":
+      stage = `<div class="ring ok">✓</div><div class="eyebrow">Checked in</div><h1>Welcome, ${esc(focus)}</h1>
+        <h2>Face match ${s.focus_score != null ? Math.round(s.focus_score * 100) + "%" : ""}${person ? " · since " + hhmm(person.start) : ""}</h2>
+        <div class="hint">Your exposure record for this visit starts now and goes to your Dewin timeline.</div>`;
+      venue = liveVenue; break;
+    case "checked_in":
+      stage = `<div class="eyebrow">Checked in</div><h1>${esc(focus)}</h1><div class="big" id="elapsed">${person ? mmss(person.elapsed_s) : ""}</div>
+        <h2>at this venue${person && person.records ? " · " + person.records + " readings attributed" : ""}</h2>
+        <div class="hint">Tap your card again to check out.</div>`;
+      venue = `<div class="vhead"><h3>${esc(focus)}'s exposure this visit</h3><span>live, every 5 s</span></div>` +
+        exposureTable(person ? person.exposure : [], "channel") + `<div style="height:1.2vw"></div>` + liveVenue;
+      break;
+    case "rejected":
+      stage = `<div class="ring bad">✕</div><div class="eyebrow">Not verified</div><h1>Face not recognized</h1><h2>This card belongs to ${esc(focus)}. Check-in denied.</h2>`;
+      venue = liveVenue; break;
+    case "unknown":
+      stage = `<div class="ring bad">?</div><div class="eyebrow">Unknown card</div><h1>Not enrolled</h1><h2>Ask the team to bind this card.</h2>`;
+      venue = liveVenue; break;
+    case "checked_out": {
+      const sm = s.summary || {};
+      stage = `<div class="ring bye">↗</div><div class="eyebrow">Checked out</div><h1>Goodbye, ${esc(focus)}</h1>
+        <div class="big">${sm.duration_s != null ? mmss(sm.duration_s) : ""}</div><h2>${sm.start ? hhmm(sm.start) + " to " + hhmm(sm.end) : ""} · ${sm.records || 0} readings</h2>
+        <div class="hint">This visit is now on your Dewin timeline.</div>`;
+      venue = `<div class="vhead"><h3>What you were exposed to</h3><span>this visit</span></div>` + exposureTable(sm.exposure, "channel");
+      break;
+    }
+    default:
+      stage = `<img class="icon float" src="brand/dewin-icon-transparent.svg" alt=""><div class="eyebrow">${esc(s.kiosk_name || "Dewin kiosk")}</div>
+        <h1>Tap your card</h1><h2>then look at the camera</h2>
+        <div class="hint">Your personal record of the air and water around you, verified at check-in.</div>`;
+      venue = liveVenue;
+  }
+  $("stage").innerHTML = stage;
+  $("venue").innerHTML = venue;
+  $("chips").innerHTML = (s.people || []).map(p => `<span class="chip"><b>${esc(cap(p.id))}</b> · ${mmss(p.elapsed_s)}</span>`).join("") ||
+    `<span class="chip" style="color:var(--dim)">Nobody checked in</span>`;
+  const t = (s.ticker || []).slice(-5).reverse().map(e => {
+    const who = e.id ? cap(e.id) : "";
+    const what = {checkin: "checked in", checkout: "checked out", face_reject: "face rejected", unknown_card: "unknown card",
+      tap: "card tapped", tamper: "reader moved", bind: "card bound", hello: "reader online", rc522_reinit: "reader reset"}[e.type] || e.type;
+    return `${hhmm(e.ts)} ${who} ${what}`.trim();
+  }).join("   ·   ");
+  $("ticker").textContent = t;
+  const al = (s.alerts || []).slice(-1)[0];
+  $("alert").textContent = al ? (al.type === "tamper" ? "Reader moved: check the card reader position" : "Card reader was reset") : "";
+  $("alert").className = "alert" + (al ? " show" : "");
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/state", {cache: "no-store"});
+    render(await r.json());
+  } catch (e) {
+    $("dGateway").className = "dot warn";
+  }
+}
+setInterval(tick, 1000); tick();
+setInterval(() => { $("clock").textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"}); }, 1000);
+</script>
+</body>
+</html>
