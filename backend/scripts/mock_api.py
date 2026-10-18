@@ -18,7 +18,7 @@ import time
 import uuid
 
 from aiohttp import web
-from jsonschema import Draft202012Validator, ValidationError
+from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 import socketio
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +42,8 @@ def validate(name, data):
     # JSON itself has no NaN/infinity; some language encoders accept them.
     if len(json.dumps(data, allow_nan=False).encode()) > 16384:
         raise ValueError("Request exceeds 16 KiB")
-    Draft202012Validator({"$ref": "#/$defs/" + name, "$defs": SCHEMA["$defs"]}).validate(data)
+    Draft202012Validator({"$ref": "#/$defs/" + name, "$defs": SCHEMA["$defs"]},
+                         format_checker=FormatChecker()).validate(data)
 
 
 def failure(code, message, data=None, retryable=False):
@@ -89,7 +90,7 @@ def create_app():
     async def connect(sid, environ, auth):
         try:
             validate("ConnectionAuth", auth)
-            user = TOKENS.get(auth["token"])
+            user = TOKENS.get(auth["token"]) if isinstance(auth, dict) and "token" in auth and auth["token"] != "0" else "alice"
         except (ValidationError, ValueError, TypeError):
             user = None
         if user is None:
@@ -106,9 +107,9 @@ def create_app():
             observed = parse_date(data["measuredAt"])
             if not time.time()-90*86400 <= observed <= time.time()+60:
                 raise ValueError("Timestamp outside allowed horizon")
+            event_id = str(uuid.UUID(data["eventId"]))
         except (ValidationError, ValueError, TypeError, OverflowError):
             return failure("INVALID_PAYLOAD", "Invalid location fields or timestamp", data)
-        event_id = str(uuid.UUID(data["eventId"]))
         canonical = json.dumps({**data, "eventId": event_id}, sort_keys=True, allow_nan=False)
         previous = records[user].get(event_id)
         if previous:
@@ -157,7 +158,7 @@ def create_app():
                 raise ValueError("Invalid history range")
         except (ValidationError, ValueError, TypeError, OverflowError):
             return failure("INVALID_PAYLOAD", "Invalid history fields or range", data)
-        limit = data.get("limit", 100)
+        limit = int(data.get("limit", 100))
         query = [user, data["from"], data["to"], limit]
         snapshot, last, expires = sequence, None, time.time()+900
         if data.get("cursor"):

@@ -16,17 +16,14 @@ from tds_sensor import TDSSensor
 from mqtt_client import MQTTManager
 from web_server import WebServer
 
-# Import configuration files (all in root directory on Pico W)
+# Optional configs are independent; a missing web config must not disable MQTT.
 try:
     import tds_config
-    import wifi as wifi_config
-    import mqtt as mqtt_config
+except ImportError:
+    tds_config = None
+try:
     import web as web_config
 except ImportError:
-    print("Warning: Configuration files not found, using defaults")
-    tds_config = None
-    wifi_config = None
-    mqtt_config = None
     web_config = None
 
 
@@ -58,23 +55,19 @@ class PicoTDS:
             print(f"Error initializing TDS sensor: {e}")
             return False
 
-        # Initialize MQTT (only if WiFi is connected and config exists)
-        if self.wifi and self.wifi.is_connected() and mqtt_config:
-            try:
-                self.mqtt = MQTTManager()
-                if self.mqtt.connect():
-                    print("MQTT initialized")
-                else:
-                    print("Warning: MQTT connection failed, continuing without MQTT")
-                    self.mqtt = None
-            except Exception as e:
-                print(f"Warning: MQTT initialization failed: {e}")
-                self.mqtt = None
-        else:
-            print("MQTT skipped (WiFi not connected or config not found)")
+        # Keep the manager after network failures so reconnects remain possible.
+        try:
+            self.mqtt = MQTTManager()
+            if self.wifi.is_connected() and self.mqtt.connect():
+                print("MQTT initialized")
+            else:
+                print("MQTT pending; will retry when WiFi/broker is available")
+        except Exception as e:
+            print(f"Warning: MQTT initialization failed: {e}")
+            self.mqtt = None
 
         # Initialize Web Server (only if WiFi is connected)
-        if self.wifi and self.wifi.is_connected() and web_config:
+        if self.wifi and self.wifi.is_connected() and web_config and web_config.WEB_SERVER_ENABLED:
             try:
                 self.web_server = WebServer()
                 if self.web_server.start():
@@ -98,7 +91,7 @@ class PicoTDS:
             self.wifi.check_connection()
 
         # Check MQTT connection
-        if self.mqtt:
+        if self.mqtt and self.wifi and self.wifi.is_connected():
             self.mqtt.check_connection()
 
         # Read TDS
@@ -113,7 +106,7 @@ class PicoTDS:
         print(f"[{timestamp}] {wifi_status} | {mqtt_status} | {web_status} | "
               f"TDS: {reading['tds_ppm']:6.1f} ppm | "
               f"V: {reading['voltage']:4.3f}V | "
-              f"T: {reading['temperature']:5.1f}°C")
+              f"T: {reading['temperature']}°C (None = unavailable)")
 
         # Publish to MQTT if connected and it's time to publish
         if self.mqtt and self.mqtt.is_connected() and self.mqtt.should_publish():
@@ -143,7 +136,7 @@ class PicoTDS:
                 if self.web_server:
                     self.web_server.handle_request()
 
-                time.sleep(tds_config.READ_INTERVAL)
+                time.sleep(getattr(tds_config, "READ_INTERVAL", 1))
 
         except KeyboardInterrupt:
             print("\n\nStopping...")

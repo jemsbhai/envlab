@@ -1,7 +1,6 @@
 """Publish one synthetic GPS + air/water packet through the actual MQTT path."""
 import argparse
 import json
-import os
 from pathlib import Path
 import sys
 import threading
@@ -20,13 +19,6 @@ def main():
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--device-id", default="contract-check-01")
     args = parser.parse_args()
-    env = {}
-    if (ROOT / ".env").exists():
-        env = dict(line.split("=", 1) for line in (ROOT / ".env").read_text().splitlines()
-                   if line and not line.startswith("#") and "=" in line)
-    password = os.environ.get("SENSOR_PASSWORD", env.get("SENSOR_PASSWORD", ""))
-    if not password or password == "replace-with-random-password":
-        raise SystemExit("Provide the deployed SENSOR_PASSWORD privately through the environment or backend/.env")
     event = json.loads((ROOT / "examples/sensor-telemetry.json").read_text(encoding="utf-8"))
     event.update(device_id=args.device_id, boot_id=uuid.uuid4().hex, seq=0, measured_at=iso(now_ts()))
     topic = f"env/v1/{args.device_id}/telemetry"
@@ -41,7 +33,6 @@ def main():
 
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
                          client_id="contract-check-"+uuid.uuid4().hex[:12], protocol=mqtt.MQTTv311)
-    client.username_pw_set("sensor", password)
     client.on_connect = on_connect
     try:
         client.connect(args.host, args.port, keepalive=20)

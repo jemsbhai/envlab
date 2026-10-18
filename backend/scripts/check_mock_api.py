@@ -1,12 +1,12 @@
 """Exercise Socket.IO API contract, ACKs, history, and isolation on the local mock."""
 import argparse
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 import uuid
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 import socketio
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -14,7 +14,8 @@ SCHEMA = json.loads((ROOT / "docs/api-v1.schema.json").read_text(encoding="utf-8
 
 
 def validate(name, payload):
-    Draft202012Validator({"$ref": "#/$defs/" + name, "$defs": SCHEMA["$defs"]}).validate(payload)
+    Draft202012Validator({"$ref": "#/$defs/" + name, "$defs": SCHEMA["$defs"]},
+                         format_checker=FormatChecker()).validate(payload)
 
 
 async def run(url):
@@ -64,10 +65,11 @@ async def run(url):
         await asyncio.sleep(.1)
         assert alice_results[-1]["status"] == "no_match" and not alice_results[-1]["sensors"]
         when = datetime.fromisoformat(now.replace("Z", "+00:00"))
-        day = when.replace(hour=0, minute=0, second=0, microsecond=0)
-        from datetime import timedelta
-        query = {"requestId": str(uuid.uuid4()), "from": day.isoformat(),
-                 "to": (day+timedelta(days=1)).isoformat(), "limit": 1, "cursor": None}
+        # Both positions deliberately use the same source timestamp. Query only
+        # that microsecond so earlier runs or interactive app use cannot pollute
+        # the checker assertions against a long-running shared mock.
+        query = {"requestId": str(uuid.uuid4()), "from": when.isoformat(),
+                 "to": (when+timedelta(microseconds=1)).isoformat(), "limit": 1, "cursor": None}
         first = await alice.call("exposure:history", query, timeout=5)
         validate("HistoryPage", first); assert first["ok"] and first["nextCursor"] and len(first["items"]) == 1
         second = await alice.call("exposure:history", {**query, "cursor": first["nextCursor"]}, timeout=5)

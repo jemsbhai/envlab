@@ -20,20 +20,27 @@ isolated app development.
 | Base URL | `https://dewin-api.cbnsndwch.dev` |
 | Socket.IO path / namespace | `/socket.io/` / `/` |
 | Protocol | Socket.IO 4 / Engine.IO 4 |
-| Connect payload | `{"token":"PERSONAL_API_TOKEN"}` |
+| Connect payload | `{"token":"0"}` — token is the literal one-character string `0` |
 | App events | `location:update`, `exposure:update`, `exposure:history` |
 
-Obtain a personal token privately from the backend owner. It determines the
-server-side user; do not send a user ID or put the token in a query string.
+**Connect with auth payload `{"token":"0"}`.** Use string `"0"`, not numeric
+`0`. This is a public demo value; no secret or login UI is needed. Token-free
+connections still work. These demo connections share identity `demo-ios`, live updates,
+history, and access to that identity's private demo sensor. They are not isolated
+from each other. Do not send a user ID in location or history requests.
+
+An optional valid token selects its separate provisioned identity. An explicitly
+supplied invalid token is rejected; use `"0"` for shared demo access. Keep any
+optional token out of query strings, logs, and source control.
 Use a Socket.IO client, not URLSessionWebSocketTask with plain JSON frames or a
 NATS client. The former `dewin-events.cbnsndwch.dev` route is retired.
-Use HTTPS with normal certificate validation and keep token/socket debug logs
-disabled. `/healthz` is public readiness metadata, not an authentication test.
+Use HTTPS with normal certificate validation. `/healthz` reports readiness.
 
 For a controlled synthetic test, submit a current-timestamp demo fix at
 `25.7617, -80.1918`. Simulator water-temperature and air-humidity observations
 are marked `source: "simulated"`; `demo-ios` can see public `sim-pico-01` and
-`sim-pico-02` plus its own private `sim-pico-03`. The other demo identity sees
+`sim-pico-02` plus its own private `sim-pico-03`. All anonymous app connections
+use this same identity. An optional token for the other demo identity sees
 only the public sensors. Actual phone positions may correctly return
 `no_match` until real nearby devices are registered. Keep test fixes separate
 from captured device locations and label simulated measurements in the UI.
@@ -70,7 +77,9 @@ python scripts/mock_api.py
 On Windows use `.venv\Scripts\python` for Python commands instead of activation.
 The server defaults to **`http://127.0.0.1:8765`**, path `/socket.io/`, namespace
 `/`, Engine.IO 4 / Socket.IO 4-compatible protocol. It supports polling and
-WebSocket so client upgrade paths can be tested. Authentication connect payload:
+WebSocket so client upgrade paths can be tested. This older local mock retains
+its synthetic token fixture; the deployed real demo requires no token. Mock
+connect payload:
 
 ```json
 {"token":"dev-only-alice-token"}
@@ -116,7 +125,7 @@ far-away coordinates return `no_match`. All mock readings are marked simulated.
 
 Swift ACK callbacks wrap the single response object as `data[0]`. Payloads are
 objects, not stringified JSON. Tokens go in the connect payload, not the URL.
-Handle connection/auth failure separately from request error ACKs and timeouts.
+Handle connection failure separately from request error ACKs and timeouts.
 
 ## UI and decoding requirements
 
@@ -127,7 +136,8 @@ Handle connection/auth failure separately from request error ACKs and timeouts.
   names, and missing optional rolling statistics. An absent field is unknown.
 - Ignore additional response fields. Requests must follow the strict schema.
 - Keep offline fixes locally; do not depend on a continuously connected iOS
-  background socket. Real history is user-scoped and persisted by the backend.
+  background socket. Real history is identity-scoped and persisted by the backend;
+  anonymous phones share the `demo-ios` timeline.
 - Do not fetch the kiosk's Supabase tables as a substitute for this API contract,
   or reuse broker/Portainer/tunnel credentials in the app.
 
@@ -137,10 +147,12 @@ Handle connection/auth failure separately from request error ACKs and timeouts.
 > `backend/docs/api-v1.md`. Integrate the iOS app with the official Swift
 > Socket.IO client using the three defined events. Use the JSON fixtures for
 > typed decoding tests. The real base URL is https://dewin-api.cbnsndwch.dev,
-> path /socket.io/, namespace /, Engine.IO 4. Obtain the personal token privately
-> and send it in the connect payload. The public real API is verified and live;
+> path /socket.io/, namespace /, Engine.IO 4. Connect with auth {"token":"0"};
+> the token is the literal one-character STRING "0", not numeric 0. No secret
+> or login UI is needed. Demo phones share demo-ios history and
+> live results. Optional valid tokens select separate identities. The API is live;
 > the local mock is available for isolated live/ACK/history integration.
-> Make the base URL and personal token configurable, retain the SocketManager,
+> Make the base URL configurable and any token optional, retain the SocketManager,
 > queue/retry GPS fixes with stable event IDs, upsert exposures, paginate history,
 > and recover the disconnect gap on reconnect. Implement matched/no-match,
 > missing metrics, private/public, and simulated states without inventing health

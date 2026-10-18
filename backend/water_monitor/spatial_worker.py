@@ -52,7 +52,7 @@ async def run():
         while not stop.is_set():
             try:
                 batch = await sensors.fetch(256, timeout=1)
-            except NatsTimeout:
+            except (NatsTimeout, TimeoutError):
                 batch = []
             except NatsError:
                 await asyncio.sleep(1)
@@ -122,7 +122,7 @@ async def run():
                 continue
             try:
                 messages = await geos.fetch(1, timeout=1)
-            except NatsTimeout:
+            except (NatsTimeout, TimeoutError):
                 continue
             except NatsError:
                 await asyncio.sleep(1)

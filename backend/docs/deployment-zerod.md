@@ -5,7 +5,16 @@ ARM64 image `water-monitor:gateway`. On 18 October 2026, the real integration
 check passed through `https://dewin-api.cbnsndwch.dev`, backed by NATS/JetStream.
 The origin is healthy and the named tunnel routes the API to localhost 8765.
 
-The public check verified invalid-token rejection, WebSocket and polling,
+**Current app demo connection:** Socket.IO auth `{"token":"0"}`, where the
+token is the literal one-character string `"0"`, selects shared identity
+`demo-ios`. No secret exchange or login UI is needed; token-free connections
+also work. All demo phones share
+that identity's live updates, history, and private demo sensor access. Optional
+valid tokens select separate identities; an explicitly invalid token is rejected.
+MQTT on LAN port 1883 accepts anonymous publish-only sensor telemetry with no
+username/password. Internal broker and tunnel management credentials remain.
+
+The earlier token-identity public check verified invalid-token rejection, WebSocket and polling,
 persisted location ACKs, identical retries and conflicts, live simulated
 air/water matches, public/private isolation, no-match results, scoped paginated
 history/cursors, and reconnect recovery. The local real stack additionally
@@ -35,6 +44,9 @@ stopped; its saved `water-homeassistant_ha_config` volume remains. Portainer
 inspects the externally managed backend, but on-disk Compose files are authoritative.
 The gateway serves canonical API documents from the read-only `./docs:/app/docs`
 mount, so documentation updates do not require an application-image rebuild.
+The static interactive explainer is served at `/architecture/` from
+`docs/architecture/index.html`. NEX and the gateway use the ARM64
+`water-monitor:gateway-demo` image, including the idle-fetch timeout fix.
 The old `dewin-events.cbnsndwch.dev` NATS ingress was removed at the API cutover;
 it is not an app endpoint.
 
@@ -57,8 +69,9 @@ Keep `.runtime/` mode 0700. The registry JSON files are mode 0644 so container
 UID 10001 can read their bind mounts; only token hashes are present. The tunnel
 credential is mode 0600, owned by UID/GID 1000 for its connector container.
 Plaintext app tokens and the Cloudflare account certificate stay on the laptop.
-Do not rerun `init_env.py` on a Pi lacking the plaintext demo-token variables:
-it would create new tokens and overwrite the allowed token hashes.
+Run token provisioning on the laptop. Ordinary initialization preserves an
+existing client registry; enrollment, rotation, and revocation require explicit
+registry edits. Keep plaintext app tokens on the laptop.
 
 The gateway loads its token-hash file at startup. After changing it, recreate
 the gateway and disconnect existing sessions to revoke a token. After replacing
@@ -68,9 +81,10 @@ payloads provide positions, not trusted ownership.
 
 The default simulator enrollment has public `sim-pico-01` / `sim-pico-02` and
 `sim-pico-03` private to `demo-ios`. Register each real sensor's actual ID and
-intended public/private owner before expecting it in the app. The broker's
-shared demo `sensor` credential allows telemetry publishing only; it is not
-per-device identity verification.
+intended public/private owner before expecting it in the app. Anonymous MQTT
+allows publishing only `env/v1/<device_id>/telemetry`, with subscriptions denied.
+Existing optional `sensor` credentials continue to work. Device IDs are not
+per-device identity verification. Anonymous app users all share `demo-ios`.
 
 ## Deploy or update
 

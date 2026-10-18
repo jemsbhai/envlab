@@ -1,8 +1,9 @@
 """Event-time spatial matching and current server-owned device authorization."""
 from bisect import bisect_right, insort
-from collections import defaultdict, deque
+from collections import defaultdict
 from copy import deepcopy
 import hashlib
+from heapq import heappop, heappush
 import json
 import math
 import os
@@ -44,7 +45,9 @@ class SensorIndex:
     def __init__(self, max_points=50000):
         self.points = defaultdict(list)
         self.identities = {}
-        self.order = deque()
+        self.order = []
+        self.occurrences = {}
+        self.sequences = set()
         self.max_points = max_points
 
     def add(self, event, observed, received, sequence):
@@ -54,29 +57,50 @@ class SensorIndex:
         if previous is not None:
             if previous != fingerprint:
                 raise ValueError("Sensor event identity conflict")
+        if sequence in self.sequences:
+            # Consumer redelivery of the very same retained raw record.
             return
         self.identities[identity] = fingerprint
         point = (observed, received, sequence, event)
-        insort(self.points[event["device_id"]], point)
-        self.order.append((identity, point))
+        occurrences = self.occurrences.setdefault(identity, [])
+        old = occurrences[0][1] if occurrences else None
+        heappush(occurrences, (sequence, point))
+        if old is None:
+            insort(self.points[event["device_id"]], point)
+        elif occurrences[0][1] is not old:
+            self.points[event["device_id"]].remove(old)
+            insort(self.points[event["device_id"]], occurrences[0][1])
+        self.sequences.add(sequence)
+        heappush(self.order, (sequence, identity, point))
         while len(self.order) > self.max_points:
             self._remove_oldest()
 
     def _remove_oldest(self):
-        old_id, old_point = self.order.popleft()
-        self.identities.pop(old_id, None)
+        sequence, old_id, old_point = heappop(self.order)
+        self.sequences.remove(sequence)
+        occurrences = self.occurrences[old_id]
+        heappop(occurrences)
         points = self.points[old_id[0]]
         points.remove(old_point)
+        if occurrences:
+            # One effective sample per identity, represented by its earliest
+            # retained occurrence. For an unsynchronized clock this advances
+            # observed/received time exactly as a fresh retained-stream replay.
+            insort(points, occurrences[0][1])
+        else:
+            self.identities.pop(old_id, None)
+            del self.occurrences[old_id]
         if not points:
             del self.points[old_id[0]]
 
     def retain_from(self, sequence):
         """Drop cache entries evicted from the authoritative raw stream.
 
-        Raw messages enter this cache in stream sequence order. Device timestamps
-        may be out of order, so retention uses reception sequence, not event time.
+        Device timestamps/redeliveries may be out of order, so retention uses
+        reception sequence, not event time. Retained MQTT retries keep a sample
+        available without increasing its rolling-statistic count.
         """
-        while self.order and self.order[0][1][2] < sequence:
+        while self.order and self.order[0][0] < sequence:
             self._remove_oldest()
 
     def match(self, envelope, devices, radius=100, max_age=300, window=60):
@@ -89,10 +113,16 @@ class SensorIndex:
                 continue
             # Infinity is only a local bisect sentinel, never serialized.
             index = bisect_right(points, (at, float("inf"), float("inf"))) - 1
+            while index >= 0:
+                observed, received, sequence, event = points[index]
+                if at-observed > max_age:
+                    index = -1
+                    break
+                if "position" in event and any(r["quality"] != "invalid" and
+                        r.get("medium") in {"air", "water"} for r in event["readings"]):
+                    break
+                index -= 1
             if index < 0:
-                continue
-            observed, received, sequence, event = points[index]
-            if at-observed > max_age or "position" not in event:
                 continue
             distance = distance_m(location, event["position"])
             if distance > radius:
@@ -118,7 +148,7 @@ class SensorIndex:
                 continue
             matched.append({"deviceId": device, "locationId": event["location_id"],
                 "visibility": devices[device]["visibility"], "position": event["position"],
-                "distanceM": round(distance, 3), "measuredAt": event["measured_at"],
+                "distanceM": round(distance, 3), "measuredAt": iso(observed) if event["measured_at"] is not None else None,
                 "receivedAt": iso(received), "observedAt": iso(observed),
                 "source": event["source"], "measurements": readings})
         matched.sort(key=lambda s: (s["distanceM"], s["deviceId"]))

@@ -120,8 +120,18 @@ async def run(settings=None, stop=None):
             if client.refresh.is_set():
                 client.refresh.clear()
                 client.configs.clear()
-                await client.publish("env/ha/pipeline/availability", "online", retain=True)
-                await publish_current(store, client, settings)
+                try:
+                    await client.publish("env/ha/pipeline/availability", "online", retain=True)
+                    await publish_current(store, client, settings)
+                except (RuntimeError, TimeoutError, nats.errors.Error) as error:
+                    LOG.warning("MQTT refresh unavailable; retrying: %s", type(error).__name__)
+                    client.refresh.set()
+                    write_health(settings.health_path, processed, ready=False)
+                    try:
+                        await asyncio.wait_for(stop.wait(), timeout=2)
+                    except TimeoutError:
+                        pass
+                    continue
             if now_ts() >= prune_at:
                 store.prune(now_ts(), settings.history_days)
                 prune_at = now_ts() + 60

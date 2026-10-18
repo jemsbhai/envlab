@@ -73,6 +73,7 @@ services:
       NATS_USER: pipeline
       NATS_PASSWORD: ${PIPELINE_PASSWORD}
       API_CURSOR_SECRET: ${API_CURSOR_SECRET:?Run python scripts/init_env.py}
+      API_ALLOWED_ORIGINS: ${API_ALLOWED_ORIGINS:-}
       API_CLIENTS_PATH: /run/dewin/clients.json
       REGISTRY_PATH: /run/dewin/devices.json
     ports:

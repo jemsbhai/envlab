@@ -4,14 +4,18 @@
 in the kiosk prototype is not the current path. This contract is hardware- and
 language-independent: Pico, Arduino, and laptop simulators use the same packet.
 
+**Assigned physical demo node:** `device_id: pico-water-01`,
+`location_id: demo-venue`, topic **`env/v1/pico-water-01/telemetry`**.
+It is already enrolled public. Publish all channels together in one packet.
+Additional boards need unique device IDs/topics and their own backend enrollment.
+
 ## Connection
 
 | Setting | Value |
 | --- | --- |
 | Broker on event LAN | **10.104.0.82** (`zerod`, existing Debian backend Pi) |
 | Port / protocol | **1883 / MQTT 3.1.1 over TCP** |
-| Username | `sensor` |
-| Password | `SENSOR_PASSWORD`, supplied privately by the backend owner |
+| Username / password | Omit both; no login required for demo telemetry |
 | MQTT client ID | Unique per physical node/connection |
 | Publish topic | **`env/v1/<device_id>/telemetry`** |
 | QoS / retain | **1 / false** |
@@ -22,11 +26,10 @@ the old WebSocket feed, Socket.IO, Postgres, or the kiosk JSONL logger. NATS
 converts the MQTT topic to `env.v1.<device_id>.telemetry`; JetStream captures it
 in `ENV_RAW`. Workers process the stored packet after broker receipt.
 
-Get the deployed password privately; `.env.example` has placeholders. A freshly
-generated password on a new laptop will not authenticate to the existing broker.
-Do not put Wi-Fi or MQTT passwords into Git. The demo credential is MQTT-only
-and can publish telemetry, not subscribe to users' data. Per-device credentials
-are the next hardening step before enrolling private production devices.
+Anonymous LAN MQTT access can only publish `env/v1/<device_id>/telemetry`;
+subscribing to app/user data is denied. Existing `sensor` credentials remain
+optional for clients already configured with them. No credential exchange is
+needed to start sending. Keep Wi-Fi credentials out of Git.
 
 ## Complete packet
 
@@ -107,8 +110,7 @@ deployment status. Registration is in the backend's private
 
 ## Verify transport before hardware integration
 
-On a laptop/Pi with `backend/requirements.txt` installed and the deployed
-`SENSOR_PASSWORD` set privately in the environment (or backend `.env`):
+On a laptop/Pi with `backend/requirements.txt` installed, without MQTT credentials:
 
 ```sh
 cd backend

@@ -231,13 +231,16 @@ The HTML status page includes:
 
 ### Adding Basic Authentication (Advanced)
 
-To add password protection, modify `web_server.py`:
+The following illustrative helper takes its expected authorization header from
+private configuration supplied by the caller. Never hardcode credentials or
+commit the private configuration; enforce authentication on every route if
+you implement it. The current firmware does not implement this helper.
 
 ```python
-def _check_auth(self, request):
+def _check_auth(self, request, expected_auth_header):
     """Check for basic authentication"""
     auth_header = request.split('Authorization: ')[1].split('\r\n')[0] if 'Authorization:' in request else None
-    if auth_header and auth_header == 'Basic YWRtaW46cGFzc3dvcmQ=':  # admin:password
+    if auth_header and expected_auth_header and auth_header == expected_auth_header:
         return True
     return False
 ```

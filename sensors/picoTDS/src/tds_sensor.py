@@ -45,6 +45,7 @@ class TDSSensor:
 
         # Temperature sensor (optional)
         self.temp_sensor = None
+        self.temperature_measured = False
         if tds_config.USE_TEMP_COMPENSATION and tds_config.TEMP_PIN:
             self._init_temp_sensor()
 
@@ -71,19 +72,23 @@ class TDSSensor:
 
     def read_temperature(self):
         """Read temperature if sensor available"""
+        self.temperature_measured = False
         if not self.temp_sensor:
-            return 25.0  # Default to 25°C if no sensor
+            return None
 
         try:
             devices = self.temp_sensor.scan()
             if devices:
                 self.temp_sensor.convert_temp()
                 time.sleep_ms(750)  # Wait for conversion
-                return self.temp_sensor.read_temp(devices[0])
+                value = self.temp_sensor.read_temp(devices[0])
+                if isinstance(value, (int, float)) and -55 <= value <= 125:
+                    self.temperature_measured = True
+                    return value
         except Exception as e:
             print(f"Temp read error: {e}")
 
-        return 25.0
+        return None
 
     def voltage_to_tds(self, voltage, temperature=25.0):
         """
@@ -129,12 +134,14 @@ class TDSSensor:
 
         avg_voltage = sum(voltages) / len(voltages)
         temperature = self.read_temperature()
-        tds = self.voltage_to_tds(avg_voltage, temperature)
+        # 25 C is a compensation reference, never a reported measurement.
+        tds = self.voltage_to_tds(avg_voltage, temperature if temperature is not None else 25.0)
 
         return {
             'tds_ppm': round(tds, 1),
             'voltage': round(avg_voltage, 3),
-            'temperature': round(temperature, 1),
+            'temperature': round(temperature, 1) if temperature is not None else None,
+            'temperature_measured': self.temperature_measured,
             'raw_adc': int(self.adc.read_u16())
         }
 
@@ -178,7 +185,7 @@ def main():
             reading = sensor.read_tds()
             print(f"TDS: {reading['tds_ppm']:6.1f} ppm | "
                   f"Voltage: {reading['voltage']:4.3f}V | "
-                  f"Temp: {reading['temperature']:5.1f}°C")
+                  f"Temp: {reading['temperature']}°C (None = unavailable)")
             time.sleep(tds_config.READ_INTERVAL)
     except KeyboardInterrupt:
         print("\nStopped by user")

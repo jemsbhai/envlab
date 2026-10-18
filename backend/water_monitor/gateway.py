@@ -25,7 +25,7 @@ LOG = logging.getLogger("dewin-api")
 
 class Gateway:
     def __init__(self):
-        origins = os.getenv("API_ALLOWED_ORIGINS", "https://dewin-api.cbnsndwch.dev,https://dewin.cbnsndwch.dev,http://localhost:3000,http://localhost:5173")
+        origins = os.getenv("API_ALLOWED_ORIGINS") or "https://dewin-api.cbnsndwch.dev,https://dewin.cbnsndwch.dev,http://localhost:3000,http://localhost:5173"
         self.sio = socketio.AsyncServer(async_mode="aiohttp", cors_allowed_origins=origins.split(","),
                                        max_http_buffer_size=65536, logger=False, engineio_logger=False)
         self.app = web.Application()
@@ -46,6 +46,8 @@ class Gateway:
         self.sio.on("exposure:history", self.history)
         self.app.router.add_get("/healthz", self.health)
         self.app.router.add_get("/", self.info)
+        self.app.router.add_get("/architecture", self.architecture)
+        self.app.router.add_get("/architecture/", self.architecture)
         self.app.router.add_get("/docs/{filename}", self.docs)
         self.app.on_startup.append(self.start)
         self.app.on_cleanup.append(self.close)
@@ -124,11 +126,13 @@ class Gateway:
     async def authenticate(self, sid, environ, auth):
         try:
             validate("ConnectionAuth", auth)
-            hashed = hashlib.sha256(auth["token"].encode()).hexdigest()
-            found = None
-            for client in self.clients:
-                if hmac.compare_digest(hashed, client["tokenSha256"]):
-                    found = client["userId"]
+            found = "demo-ios"
+            if isinstance(auth, dict) and "token" in auth and auth["token"] != "0":
+                hashed = hashlib.sha256(auth["token"].encode()).hexdigest()
+                found = None
+                for client in self.clients:
+                    if hmac.compare_digest(hashed, client["tokenSha256"]):
+                        found = client["userId"]
             if found is None:
                 raise ValueError("Unauthorized")
         except (ValueError, TypeError, ValidationError, KeyError):
@@ -235,9 +239,13 @@ class Gateway:
 
     async def info(self, request):
         return web.json_response({"service": "Dewin environmental API", "mode": "live", "schemaVersion": 1,
-            "socketioPath": "/socket.io/", "namespace": "/", "authentication": "Socket.IO connect payload token",
+            "socketioPath": "/socket.io/", "namespace": "/", "authentication": "Demo token: 0; shared demo-ios identity",
             "events": ["location:update", "exposure:update", "exposure:history"], "health": "/healthz",
-            "contract": "/docs/api-v1.md"})
+            "contract": "/docs/api-v1.md", "architecture": "/architecture/"})
+
+    async def architecture(self, request):
+        return web.FileResponse(Path("/app/docs/architecture/index.html"),
+                                headers={"Cache-Control": "no-cache"})
 
     async def docs(self, request):
         filename = request.match_info["filename"]
