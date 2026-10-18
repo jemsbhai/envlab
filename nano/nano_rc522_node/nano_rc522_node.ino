@@ -27,6 +27,7 @@ const uint8_t PIN_SS = 10;
 const uint8_t PIN_RST = 9;
 const unsigned long IMU_PERIOD_MS = 1000;
 const unsigned long CARD_DEBOUNCE_MS = 2000;
+const unsigned long READER_CHECK_MS = 1000;
 const float MOVE_THRESHOLD_G = 0.12;
 
 MFRC522 rfid(PIN_SS, PIN_RST);
@@ -35,6 +36,7 @@ bool imuOk = false;
 byte rcVersion = 0;
 unsigned long lastImuMs = 0;
 unsigned long lastCardMs = 0;
+unsigned long lastReaderCheckMs = 0;
 String lastUid = "";
 float ax0 = 0, ay0 = 0, az0 = 0;
 bool baselineSet = false;
@@ -68,12 +70,38 @@ void setup() {
   while (!Serial && millis() - t0 < 3000) {}   // wait briefly for a host, but run without one
 
   SPI.begin();
-  rfid.PCD_Init();
-  delay(50);
-  rcVersion = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  initReader();
 
   imuOk = IMU.begin();
   printHello();
+}
+
+void initReader() {
+  rfid.PCD_Init();
+  rfid.PCD_SetAntennaGain(rfid.RxGain_max);
+  delay(50);
+  rcVersion = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+}
+
+// The RC522 is only configured at init. A bump or a power dip can reset the chip: the version register
+// still answers but the antenna comes back off and no card is ever seen. Check once a second and re-init.
+void checkReader() {
+  unsigned long now = millis();
+  if (now - lastReaderCheckMs < READER_CHECK_MS) return;
+  lastReaderCheckMs = now;
+  byte v = rfid.PCD_ReadRegister(MFRC522::VersionReg);
+  byte tx = rfid.PCD_ReadRegister(MFRC522::TxControlReg);
+  bool chipGone = (v == 0x00 || v == 0xFF);
+  bool antennaOff = ((tx & 0x03) != 0x03);
+  if (!chipGone && !antennaOff) return;
+  initReader();
+  Serial.print("{\"type\":\"rc522_reinit\",\"node\":\"" NODE_ID "\",\"t\":");
+  Serial.print(now);
+  Serial.print(",\"reason\":\"");
+  Serial.print(chipGone ? "no_response" : "antenna_off");
+  Serial.print("\",\"rc522_version\":\"0x");
+  Serial.print(rcVersion, HEX);
+  Serial.println("\"}");
 }
 
 void pollCard() {
@@ -167,6 +195,7 @@ void pollCommands() {
 }
 
 void loop() {
+  checkReader();
   pollCard();
   pollImu();
   pollCommands();
