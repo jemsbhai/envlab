@@ -4,8 +4,8 @@
 `~/envlab/sensors.jsonl` belonged to the kiosk prototype and is not the current
 Dewin sensor contract.
 
-Start with [the sensor agent handoff](../docs/sensor-agent-handoff.md) and
-[the MQTT v1 contract](../backend/docs/pico-contract.md).
+Start with [the sensor agent handoff](../../docs/sensor-agent-handoff.md) and
+[the MQTT v1 contract](../../backend/docs/pico-contract.md).
 
 - Broker: `10.104.0.82:1883`, MQTT 3.1.1, authenticated TCP on the event LAN.
 - Topic: `env/v1/<device_id>/telemetry`, QoS 1, retain false.
@@ -20,4 +20,7 @@ test to check the transport before attaching real sensors.
 
 ## PicoTDS
 
-PicoTDS is a Raspberry Pi Pico W project for reading TDS (Total Dissolved Solids) measurements. See [PicoTDS README](picotds/README.md) for full documentation.
+PicoTDS reads total dissolved solids with a Raspberry Pi Pico W. Hardware setup
+is in [Wiring](docs/WIRING.md) and [Calibration](docs/CALIBRATION.md). The current
+publisher still needs the [Dewin integration changes](../../docs/picotds-integration-prompt.md)
+before its messages follow the shared MQTT contract.

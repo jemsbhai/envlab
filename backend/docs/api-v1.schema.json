@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Dewin Socket.IO API v1 payloads",
-  "$comment": "Validate a payload using the appropriate $defs entry. These definitions describe the implementation target; the gateway is not deployed yet. Request objects are closed; response objects allow additive fields.",
+  "$comment": "Validate a payload using the appropriate $defs entry. These definitions are implemented by the real Socket.IO gateway; see deployment-zerod.md for verified deployment status. Request objects are closed; response objects allow additive fields.",
   "anyOf": [
     {
       "$ref": "#/$defs/ConnectionAuth"

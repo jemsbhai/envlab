@@ -1,210 +1,164 @@
-# Dewin environmental telemetry
+# Dewin environmental backend
 
-**Current direction:** iOS uses a Socket.IO API for GPS submission and enriched
-air/water exposure history. Start with [the API v1 team contract](docs/api-v1.md).
-The broker is live; the new Socket.IO gateway is pending implementation. Home
-Assistant is stopped with its data preserved. HA and food-result instructions
-below describe the earlier prototype, not the current app integration.
+Sensors publish air/water measurements over MQTT. Phones submit GPS positions
+through a Socket.IO gateway and receive nearby authorized sensor observations,
+live and in a persisted timeline. NATS is the broker; JetStream stores the data;
+the Python workload running under NEX performs the spatial join.
 
-Runnable data pipes for the **1 GB Raspberry Pi 4**:
-
-The current live deployment is on **`zerod` (`10.104.0.82`, actually 4 GB RAM)**.
-See [its deployment and operating notes](docs/deployment-zerod.md).
+The real gateway is deployed and verified at `https://dewin-api.cbnsndwch.dev`.
+[The deployment notes](docs/deployment-zerod.md) record the completed checks
+and their limits. Home Assistant is stopped, with its saved volume
+preserved. The current runtime does not write a SQLite exposure archive.
 
 ```text
-Simulated Pico / real Pico W --MQTT 3.1.1--> NATS :1883
-                                               |
-                                        JetStream ENV_RAW
-                                               |
-                                     NEX native Python worker
-                                       /       |         \
-                                  SQLite     MQTT       NATS processed subjects
-                                              |               |
-                                    Home Assistant     optional WebSocket UI
-                                    on the 4 GB Pi
+Pico / simulator -- MQTT 3.1.1 --> ENV_RAW (JetStream)
+                                          |
+iOS -- Socket.IO --> gateway --> DEWIN_GEO |
+                        ^                 v
+                        |            NEX spatial worker
+                        +---- DEWIN_RESULTS KV + DEWIN_EXPOSURES
 ```
 
-The worker validates packets, normalizes temperature units, deduplicates retries,
-archives observations, calculates a 60-second arithmetic rolling mean, and
-publishes Home Assistant discovery plus current state. Simulated data is marked
-as such. These averages are demonstration statistics, not health classifications.
+Start with [the Socket.IO API](docs/api-v1.md), [iOS handoff](../docs/ios-agent-handoff.md),
+or [sensor MQTT contract](docs/pico-contract.md). MQTT packet keys are snake_case;
+the app API uses camelCase. Simulated readings always carry `source: "simulated"`.
 
-## Start on the Pi
+## Run a local real stack
 
-Prerequisites: **64-bit Debian 12/13 or Raspberry Pi OS**, Docker Engine with Compose,
-and Python 3 for generating configuration. Keep the existing host OS.
-Copy this folder to the 1 GB Pi; retain any existing `.env` and data volumes.
-
-On a fresh Debian 12/13 host, `sh deploy/install-docker-debian.sh` installs Docker
-and Compose from Docker's official apt repository. If your user is not in the
-Docker group, prefix Docker commands below with `sudo -n`, as on `zerod`.
+Use 64-bit Debian/Raspberry Pi OS or Docker Desktop with Compose. Generate
+configuration on a trusted development computer:
 
 ```sh
 python3 scripts/init_env.py
 docker compose --profile sim up -d --build --wait
 docker compose ps
-docker compose logs -f nex simulator
+curl -f http://127.0.0.1:8765/healthz
 ```
 
-The first build compiles a pinned NEX source revision. Go compilation is limited
-to one parallel build job, but a laptop build is preferable on a 1 GB board.
-To build an ARM64 image on a Docker Desktop laptop and transfer it instead:
+The first build compiles a pinned NEX revision. Build on a laptop for a 1 GB Pi;
+the current physical backend `zerod` has approximately 4 GB. On a Debian host
+where Docker requires root, prefix Docker commands with `sudo -n`.
+
+`init_env.py` preserves existing passwords, creates missing secrets, generates
+two personal demo API tokens, writes their SHA-256 hashes into
+`.runtime/api-clients.json`, and creates `.runtime/devices.json` only if absent.
+Both runtime files and `.env` are ignored by Git. The plaintext app tokens are
+`API_DEMO_TOKEN` for `demo-ios` and `API_SECOND_TOKEN` for `demo-other`; hand them
+out privately. The gateway reads hashes, not these plaintext token variables.
+Do not run initialization on the deployed Pi when its plaintext app tokens have
+deliberately been withheld: that would generate different token hashes.
+
+The default local API is `http://127.0.0.1:8765`, Socket.IO path `/socket.io/`,
+namespace `/`, Engine.IO 4. MQTT listens on port 1883; Core NATS 4222, monitoring
+8222, and the API bind to host loopback. Override `MQTT_PORT`, `NATS_PORT`,
+`MONITOR_PORT`, or `API_HOST_PORT` in `.env` if occupied. Browser origins use the
+gateway's `API_ALLOWED_ORIGINS` setting; native iOS still authenticates with its
+personal token. The Compose service does not publish the API directly to the LAN.
+
+## Device enrollment and demo data
+
+Only registered devices can appear in app results. Edit the private
+`.runtime/devices.json` on the backend, for example:
+
+```json
+{
+  "devices": {
+    "pico-water-01": {"visibility": "public"},
+    "pico-home-01": {"visibility": "private", "ownerUserId": "demo-ios"}
+  }
+}
+```
+
+Give the backend owner each actual `device_id`, configured position, measured
+metrics/units, and intended owner/visibility. Positions come from each telemetry
+packet. Ownership comes from this trusted registry; device-supplied ownership
+claims are not used. Unknown nodes can be ingested without being exposed to users.
+After replacing either bind-mounted registry file, recreate `nex` and `gateway`
+so both containers see the new file. Token-registry changes require gateway
+recreation; disconnect existing sessions when revoking a credential.
+
+The simulator publishes every five seconds at `25.7617, -80.1918`. Its water
+temperature and air humidity are synthetic demonstration values, with humidity
+marked uncalibrated. The example registry enrolls `sim-pico-01` and `sim-pico-02`
+as public, and `sim-pico-03` as private to `demo-ios`. The second demo user cannot
+see that private device. Real hardware must use different IDs and be enrolled.
 
 ```sh
-docker buildx build --platform linux/arm64 --load -t water-monitor:pi .
-docker save -o water-monitor-arm64.tar water-monitor:pi
+docker compose stop simulator
+docker compose --profile sim up -d simulator
+docker compose --profile sim up -d --force-recreate nex gateway
 ```
 
-Copy the tar and this project to the Pi, run `docker load -i water-monitor-arm64.tar`,
-and add `WATER_MONITOR_IMAGE=water-monitor:pi` to the Pi's `.env`. Then run
-`docker compose --profile sim up -d --wait` **without** `--build`.
+Changing simulator cadence uses `SIM_DEVICES` / `SIM_INTERVAL` in `.env`, then
+`docker compose --profile sim up -d simulator`.
 
-The default simulator publishes three devices every five seconds. Set
-`SIM_DEVICES` and `SIM_INTERVAL` in `.env`, then run `docker compose --profile sim up -d`
-to apply changes. `docker compose stop simulator` leaves the backend running.
+## Topics and persistence
 
-`scripts/init_env.py` generates separate random passwords and preserves existing
-non-placeholder values. `.env` is ignored by Git and excluded from image builds.
+| Purpose | Transport / name | Producer → consumer |
+| --- | --- | --- |
+| Sensor telemetry | MQTT `env/v1/<device_id>/telemetry` | Sensor → NATS |
+| Raw sensor archive | NATS `env.v1.*.telemetry`, stream `ENV_RAW` | MQTT bridge → worker |
+| Phone position archive | NATS `dewin.v1.<userId>.location`, stream `DEWIN_GEO` | Gateway → worker |
+| Completed exposure archive | NATS `dewin.v1.<userId>.exposure`, stream `DEWIN_EXPOSURES` | Worker → persistence |
+| Request deduplication | JetStream KV `DEWIN_RECEIPTS` | Gateway |
+| Immutable exposure/history records | JetStream KV `DEWIN_RESULTS` | Worker → gateway |
+| Worker readiness | JetStream KV `DEWIN_HEALTH` | Worker → gateway |
+| Phone submission / live result / history | Socket.IO `location:update`, `exposure:update`, `exposure:history` | App ↔ gateway |
 
-## Connect Home Assistant
+Sensors publish only their MQTT topic. Phones use only Socket.IO. Neither needs
+native NATS credentials, stream names, or direct JetStream consumer access.
 
-On `zerod`, Home Assistant Container runs as a sibling of the broker and processor.
-Portainer manages its `water-homeassistant` stack. The install and operating
-instructions are in [the deployment notes](docs/deployment-zerod.md).
+File-backed application streams retain up to 90 days, bounded by size and message
+counts. `ENV_RAW` is capped at 256 MiB/50,000 messages, `DEWIN_GEO` at
+128 MiB/100,000, and `DEWIN_EXPOSURES` at 256 MiB/100,000. Receipt and result KV
+buckets are capped at 128 and 256 MiB respectively, with a 90-day TTL; worker
+health is a 1 MiB/60-second bucket. The broker has a 2 GB total file-store budget,
+also shared with MQTT protocol state and preserved legacy streams. These caps
+do not guarantee 90 days at every sampling rate. Capacity or broker failures
+produce a retryable error rather than a successful location ACK.
 
-On the 4 GB Pi's HA instance:
+The worker's `dewin-spatial-v1` durable consumer acknowledges GPS work after the
+exposure is persisted. Repeated delivery reuses the stored result. Original
+source and receive times survive replay. In-memory sensor/history indexes are
+disposable and rebuild from JetStream; the sensor index is bounded to 50,000
+distinct packets. Do not scale the spatial worker beyond one instance in this
+demo configuration. New sensor data does not rewrite completed exposures.
 
-1. Add or reconfigure the **MQTT integration** in Settings → Devices & services.
-2. Broker: the **1 GB Pi's LAN IP**, port **1883**.
-3. Username: **homeassistant**. Password: **HA_PASSWORD** from the backend `.env`.
-4. Select **MQTT 3.1.1**, not the MQTT 5 default. The checked HA 2026.10.2 release
-   still has this selection, though the general MQTT docs say MQTT 5 is required.
-   If your version offers no 3.1.1 option, direct NATS integration needs a compatible
-   HA version or a separate MQTT 5 bridge; this scaffold does not install one.
-5. Leave discovery enabled with prefix `homeassistant`.
+Named volume `water-monitor_jetstream` preserves broker data across ordinary
+container restarts and `down`/`up`. Do not run `down -v`. The old `history` volume
+is retained for the earlier prototype and is not used by this gateway.
 
-Look for devices `sim-pico-01`, `sim-pico-02`, and `sim-pico-03`. Each exposes
-temperature and its rolling mean. Attributes include source, quality, location,
-observation time, and original broker receive time.
-
-For a ready-made demo dashboard, generate JSON (also valid YAML):
-
-```sh
-docker compose exec -T nex python -m water_monitor.dashboard > ha-dashboard.json
-```
-
-An already generated three-device example is in `deploy/ha-dashboard.json`.
-
-In a new HA dashboard, take control and paste this into the raw configuration
-editor. It uses deterministic default entity IDs; adjust them if an existing HA
-entity already occupied those IDs or you renamed them.
-
-To prove staleness, stop the simulator. Sensors should become unavailable within
-about 30 seconds of their observation time (unless HA was disconnected and could not
-observe the original state). Stop the processor to make all its entities
-unavailable via the pipeline availability topic. Discovery is retained; sensor
-states are not retained. HA's birth message causes fresh current values to be
-republished with only their remaining expiry time.
-
-## Contracts and topics
-
-Give the firmware teammate [the Pico contract](docs/pico-contract.md).
-The frontend teammate can use [the optional WebSocket contract](docs/frontend-contract.md).
-The iOS app's separate durable meal-result channel is documented in
-[the iOS results contract](docs/ios-results-contract.md); `ZERO_RESULTS` is deployed.
-No sensor model is hardcoded into ingestion.
-
-| Purpose | MQTT topic / NATS subject |
-| --- | --- |
-| Pico publishes | `env/v1/<device>/telemetry` |
-| Raw JetStream capture | `env.v1.*.telemetry` |
-| HA entity config | `homeassistant/sensor/<stable-id>/config` |
-| HA instantaneous value | `env/ha/<device>/<sensor>/<metric>/state` |
-| HA arithmetic rolling mean | `env/ha/<device>/<sensor>/<metric>/mean` |
-| Pipeline availability | `env/ha/pipeline/availability` |
-| Web frontend live feed | `env.processed.<device>.<sensor>.<metric>` |
-
-## Replay, storage, and resource limits
-
-- File-backed `ENV_RAW`: **24 hours or 512 MiB**, whichever limit is reached first.
-  The broker's total JetStream disk budget is 768 MiB, including MQTT state.
-- Durable pull consumer: `ha-processor-v1`; explicit acknowledgement after archive
-  and live-output handling. A retry after a DB commit does not double-count data.
-  Invalid packets go into a bounded SQLite `rejected` table and are acknowledged.
-- SQLite archive: up to **90 days or 250,000 events**, whichever is smaller,
-  pruned each minute. This demo cap is not a promise of 90 days at every sample
-  rate. The `events.raw` column preserves original packets; normalized readings
-  and materialized latest values are separate tables. Units cannot silently change.
-- Old replayed events enter history and eligible averaging windows but cannot
-  replace newer current values or present an expired reading as fresh in HA.
-- Named Docker volumes preserve JetStream and SQLite across ordinary `down`/`up`.
-  NEX placement is recreated once on each container boot; stream progress and
-  deduplication live outside that ephemeral placement. One processor instance is
-  intended; do not scale the `nex` service with this shared-volume configuration.
-- Runtime memory ceilings: broker 256 MiB, NEX plus worker 384 MiB, simulator
-  64 MiB. Use `docker stats --no-stream` to measure actual use on the Pi.
-- Authenticated MQTT, HA :8123, and Portainer HTTPS :9443 are exposed to the LAN.
-  Core NATS :4222 and monitoring
-  :8222 bind to localhost on the host. The optional WebSocket mapping is localhost
-  too. The deployed [named Cloudflare tunnel](docs/cloudflare-tunnel.md) exposes
-  only the authenticated, read-only WebSocket feed at
-  `wss://dewin-events.cbnsndwch.dev`.
-
-## Inspect and test
+## Check and operate
 
 ```sh
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 python -m unittest discover -v
-python scripts/smoke_test.py
+python scripts/check_live_api.py --url http://127.0.0.1:8765
 ```
 
-On Windows use `.venv\Scripts\python` instead of activating the environment.
-The smoke test loads local `.env` settings and uses an MQTT 3.1.1 HA stand-in to
-check discovery, state, averaging, duplicate/late data, bad packets, retained
-config, and HA birth. Run it with the simulator stopped to make consumer-idle
-checks deterministic. It removes only its own test discovery configs afterward.
+On Windows use `.venv\Scripts\python`. The live check loads the two API tokens
+privately from `.env`, submits synthetic locations, and tests the running real
+stack. Use a test environment or demo identities; its test records are durable.
+The local mock remains useful for app development without Docker:
+`pip install -r requirements-mock.txt`, then `python scripts/mock_api.py`.
+Mock data is in memory and is not evidence of JetStream durability.
 
 ```sh
-docker compose stop simulator
-python scripts/smoke_test.py --restarts
-```
-
-`--restarts` also stops NEX, publishes while the processor is offline, restarts
-the broker, and verifies durable catch-up after automatic NEX deployment.
-This deliberately interrupts this project's local backend. It does not exercise
-HA's actual UI or prove deployment on a physical Pi.
-
-To also verify WebSocket delivery and the viewer's read-only permissions:
-
-```sh
-pip install -r requirements-dev.txt
-docker compose -f compose.yaml -f deploy/websocket.compose.yaml up -d --wait
-python scripts/smoke_test.py --websocket --restarts
-```
-
-Useful commands:
-
-```sh
+docker compose logs --tail 50 gateway nex
 docker compose exec nex python -m water_monitor.health
 docker compose exec nex nex --disable-upgrade-check --config /tmp/water-nex/config.json workload list
-docker compose exec nex python -c "import sqlite3; c=sqlite3.connect('/data/history.sqlite3'); print(c.execute('select count(*) from events').fetchone())"
-curl http://127.0.0.1:8222/healthz
-docker compose --profile sim down
+curl -f http://127.0.0.1:8222/healthz
+docker stats --no-stream
 ```
 
-To rebuild after editing code: `docker compose build nex`, then
-`docker compose --profile sim up -d --force-recreate nex simulator`.
+Avoid dumping `.env`, Compose's fully interpolated configuration, or raw GPS
+payloads into shared logs. Docker memory limits are configured but the current
+Pi kernel lacks memory-controller support, so monitor actual usage.
 
-## Implementation references
-
-- [NATS MQTT](https://docs.nats.io/learn/mqtt/): topic conversion, MQTT 3.1.1, JetStream requirement.
-- [NEX source](https://github.com/synadia-io/nex/tree/12609378dbb5402ef94a1b283704e0441fea4754): pinned native runtime and CLI.
-- [HA MQTT discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery).
-- [HA sensor expiry](https://www.home-assistant.io/integrations/sensor.mqtt/#expire_after).
-- [HA 2026.10.2 protocol options](https://github.com/home-assistant/core/blob/2026.10.2/homeassistant/components/mqtt/const.py).
-
-Scope: environmental telemetry, processing, Home Assistant, and the read-only
-public live feed. Image recognition, per-person exposure matching, and a
-historical HTTP API are not implemented here.
+The existing Debian host and other services remain in place. See
+[Pi operations](docs/deployment-zerod.md) for deployment commands and
+[Cloudflare routing](docs/cloudflare-tunnel.md) for the public API. Earlier
+HA/SQLite and NATS frontend source remains for reference; its old smoke test
+is not the acceptance test for the current spatial gateway.

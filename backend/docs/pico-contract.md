@@ -100,8 +100,10 @@ Register the node ID, location, and intended owner/public visibility with the
 backend owner. Ownership and privacy are trusted server registry fields, not
 claims in MQTT packets. Do not add `owner_user_id`, user histories, names, face
 metadata, or `visibility` to telemetry. New unregistered nodes must not appear
-in the future app's matching results until registered. The real Socket.IO
-spatial gateway is not deployed yet.
+in the app's matching results until registered. The real Socket.IO spatial
+gateway is deployed and publicly verified; see [the Pi notes](deployment-zerod.md) for verified
+deployment status. Registration is in the backend's private
+`.runtime/devices.json`; ask the backend owner to enroll the physical node.
 
 ## Verify transport before hardware integration
 
@@ -120,7 +122,9 @@ check `ENV_RAW` and processor acceptance using the printed boot ID.
 
 **Deployment status:** verified on the physical Pi on 18 October 2026: MQTT
 QoS 1 publish, JetStream durable capture, and NEX acceptance of coordinates plus
-air/water readings. The running image is `water-monitor:spatial-contract`.
+air/water readings. The current running image is `water-monitor:gateway`; the
+public Socket.IO integration check also passed matching and user isolation with
+simulated air/water data. Real physical sensor integration remains firmware work.
 Legacy v1 packets remain accepted for backward compatibility;
-new firmware must include coordinates and medium for the upcoming spatial API.
+new firmware must include coordinates and medium for the spatial API.
 The actual sensor drivers, calibration, and offline queue remain firmware work.

@@ -1,12 +1,14 @@
 """Create local configuration without overwriting existing credentials."""
 from pathlib import Path
 import secrets
+import hashlib
+import json
 
 path = Path(__file__).resolve().parents[1] / ".env"
 existing = path.exists()
 template = path.read_text(encoding="utf-8") if existing else path.with_name(".env.example").read_text(encoding="utf-8")
 for name in ("SENSOR_PASSWORD", "PIPELINE_PASSWORD", "HA_PASSWORD", "VIEWER_PASSWORD",
-             "PORTAINER_ADMIN_PASSWORD", "HA_ADMIN_PASSWORD"):
+             "PORTAINER_ADMIN_PASSWORD", "HA_ADMIN_PASSWORD", "API_CURSOR_SECRET", "API_DEMO_TOKEN", "API_SECOND_TOKEN"):
     placeholder = f"{name}=replace-with-random-password"
     if placeholder in template:
         template = template.replace(placeholder, f"{name}={secrets.token_hex(24)}")
@@ -23,4 +25,15 @@ values = dict(line.split("=", 1) for line in template.splitlines()
 admin_file = runtime / "portainer-admin-password"
 admin_file.write_text(values["PORTAINER_ADMIN_PASSWORD"], encoding="utf-8")
 admin_file.chmod(0o600)
+clients = {"clients": [{"userId": user, "tokenSha256": hashlib.sha256(values[key].encode()).hexdigest()}
+                       for user, key in (("demo-ios", "API_DEMO_TOKEN"), ("demo-other", "API_SECOND_TOKEN"))]}
+clients_file = runtime / "api-clients.json"
+clients_file.write_text(json.dumps(clients, indent=2)+"\n", encoding="utf-8")
+# Parent is mode 0700. Bind-mounted files must be readable by container UID 10001.
+# Only token hashes, never the login tokens, are written here.
+clients_file.chmod(0o644)
+devices = runtime / "devices.json"
+if not devices.exists():
+    devices.write_text((path.parent / "deploy/devices.example.json").read_text(encoding="utf-8"), encoding="utf-8")
+    devices.chmod(0o644)
 print("Configured .env credentials; existing non-placeholder values were preserved.")

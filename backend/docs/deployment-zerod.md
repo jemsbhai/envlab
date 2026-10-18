@@ -1,172 +1,173 @@
-# Live backend: zerod
+# Backend Pi: zerod
 
-**Current scope update:** HA's Portainer stack was stopped on 18 October 2026;
-its saved volume is retained. The new iOS integration is
-[Socket.IO API v1](api-v1.md), pending gateway deployment. The HA URLs and
-verification below document the previous prototype. NATS/JetStream, NEX,
-the simulator, Portainer, and the tunnel remain deployed.
+The real Socket.IO gateway and NEX spatial worker are deployed on the Pi using
+ARM64 image `water-monitor:gateway`. On 18 October 2026, the real integration
+check passed through `https://dewin-api.cbnsndwch.dev`, backed by NATS/JetStream.
+The origin is healthy and the named tunnel routes the API to localhost 8765.
 
-Deployed and tested on 2026-10-18 via the user's existing SSH profile.
+The public check verified invalid-token rejection, WebSocket and polling,
+persisted location ACKs, identical retries and conflicts, live simulated
+air/water matches, public/private isolation, no-match results, scoped paginated
+history/cursors, and reconnect recovery. The local real stack additionally
+passed 23 unit tests, full-stack restart recovery, and a broker-only restart
+while app sockets stayed connected. Full service-restart recovery has not been
+run on the physical Pi. Actual Swift app/Xcode validation remains with iOS.
 
 | Item | Value |
 | --- | --- |
 | SSH | `ssh zerod` |
 | Host | `pi-09.local` / `10.104.0.82` |
-| User | `hacker9` |
-| Actual hardware | Raspberry Pi, ARM64, approximately 4 GB RAM |
-| OS | Debian 13 (trixie), 64-bit |
-| Project | `/home/hacker9/team-zero-water-monitor` |
+| User | `hacker9`; passwordless `sudo -n` |
+| Hardware / OS | ARM64 Pi, approximately 4 GB RAM; Debian 13 |
+| Project on Pi | `/home/hacker9/team-zero-water-monitor` |
 | Docker / Compose | 29.9.1 / v5.6.0 |
-| Application image | `water-monitor:spatial-contract`, built for `linux/arm64` |
-| Broker image | `nats:2.15.1-alpine`, ARM64 |
-| MQTT for Picos and HA | `10.104.0.82:1883`, MQTT 3.1.1 |
-| Core NATS | Pi localhost `127.0.0.1:4222` |
-| Monitoring | Pi localhost `127.0.0.1:8222` |
-| Optional NATS WebSocket | Pi localhost `127.0.0.1:8080` |
-| Home Assistant Container | `http://10.104.0.82:8123`, version 2026.10.2 |
-| Portainer CE | `https://10.104.0.82:9443`, version 2.45.2 |
-| Public read-only feed | `wss://dewin-events.cbnsndwch.dev` |
+| Broker | `nats:2.15.1-alpine` |
+| Application image | `water-monitor:gateway`, `linux/arm64` |
+| MQTT for sensors | `10.104.0.82:1883`, MQTT 3.1.1 |
+| Core NATS / monitoring | Pi loopback `4222` / `8222` |
+| API origin | Pi loopback `8765` |
+| Live public API | `https://dewin-api.cbnsndwch.dev` |
+| Portainer CE | `https://10.104.0.82:9443`, 2.45.2 |
 
-Debian remains the host OS. HA, Portainer, NATS/NEX, and the tunnel connector
-are sibling Docker containers. The pre-existing apps on ports 80 and 3000 are
-preserved. HA Container has no Supervisor/add-on store; services are managed in
-Docker/Portainer instead. This MQTT-only deployment does not grant HA privileged
-access or host Bluetooth-management capabilities.
+Keep Debian and the pre-existing services on ports 80 and 3000. NATS, NEX, the
+gateway, Portainer, and cloudflared are sibling containers. Home Assistant is
+stopped; its saved `water-homeassistant_ha_config` volume remains. Portainer
+inspects the externally managed backend, but on-disk Compose files are authoritative.
+The gateway serves canonical API documents from the read-only `./docs:/app/docs`
+mount, so documentation updates do not require an application-image rebuild.
+The old `dewin-events.cbnsndwch.dev` NATS ingress was removed at the API cutover;
+it is not an app endpoint.
 
-The same generated credentials are in the local workspace `.env` and the Pi's
-project `.env` (mode 0600). They are not included in the image or source ZIP.
-Use username `sensor` for Picos, `homeassistant` for HA, and `viewer` for the
-processed frontend feed. Each password has a correspondingly named variable.
+## Private configuration
 
-For the UIs, use:
+Generate secrets on the trusted laptop with `backend/scripts/init_env.py`.
+Preserve the deployed broker passwords. Copy only required broker secrets and
+`API_CURSOR_SECRET` into the Pi project `.env` (mode 0600). The Pi's
+`WATER_MONITOR_IMAGE` selects the transferred ARM64 image. The API listens on
+host loopback via `API_HOST_PORT=8765` by default.
 
-| UI | Username | Password in private `.env` |
-| --- | --- | --- |
-| Home Assistant | `teamzero` | `HA_ADMIN_PASSWORD` |
-| Portainer | `admin` | `PORTAINER_ADMIN_PASSWORD` |
+Copy these ignored files into the Pi project's `.runtime/` directory:
 
-`HA_PASSWORD` is HA's MQTT broker password, separate from its UI administrator
-password. Portainer uses a self-signed HTTPS certificate on the local network.
-The Dewin dashboard is at `http://10.104.0.82:8123/team-zero/pipes`.
+- `api-clients.json`: personal token hashes and server-assigned user IDs.
+- `devices.json`: trusted device visibility and optional `ownerUserId`.
+- `cloudflare-tunnel.json`: this tunnel's run credential only.
+- `cloudflared.yml`: API hostname → `http://127.0.0.1:8765`, then HTTP 404.
+
+Keep `.runtime/` mode 0700. The registry JSON files are mode 0644 so container
+UID 10001 can read their bind mounts; only token hashes are present. The tunnel
+credential is mode 0600, owned by UID/GID 1000 for its connector container.
+Plaintext app tokens and the Cloudflare account certificate stay on the laptop.
+Do not rerun `init_env.py` on a Pi lacking the plaintext demo-token variables:
+it would create new tokens and overwrite the allowed token hashes.
+
+The gateway loads its token-hash file at startup. After changing it, recreate
+the gateway and disconnect existing sessions to revoke a token. After replacing
+the bind-mounted device registry, recreate `nex` and `gateway`. The registry is
+the authority for both live matching and current history authorization. Device
+payloads provide positions, not trusted ownership.
+
+The default simulator enrollment has public `sim-pico-01` / `sim-pico-02` and
+`sim-pico-03` private to `demo-ios`. Register each real sensor's actual ID and
+intended public/private owner before expecting it in the app. The broker's
+shared demo `sensor` credential allows telemetry publishing only; it is not
+per-device identity verification.
+
+## Deploy or update
+
+Build the image on the laptop to avoid compiling Go on the Pi:
+
+```sh
+cd backend
+docker buildx build --platform linux/arm64 --load -t water-monitor:gateway .
+docker save -o water-monitor-arm64.tar water-monitor:gateway
+```
+
+Transfer the image archive and current `backend/` sources without `.env`, private
+runtime files, virtual environments, or local data; provision the required
+private files separately as above. Preserve remote `.env`, `.runtime/`, and
+Docker volumes. After `ssh zerod`:
+
+```sh
+cd ~/team-zero-water-monitor
+sudo -n docker load -i .runtime/water-monitor-arm64.tar
+# Set WATER_MONITOR_IMAGE=water-monitor:gateway in the private .env.
+sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml exec -T nats nats-server -t -c /etc/nats/nats.conf
+sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml restart nats
+sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml --profile sim up -d --no-build --wait
+curl -f http://127.0.0.1:8765/healthz
+```
+
+The NATS restart applies the new file-store budget. Keep the WebSocket overlay
+while preserving this deployment's existing localhost mapping; it is not the
+app transport. The new worker replaces the active legacy HA/SQLite workload.
+NEX deploys the spatial workload automatically at container startup. Readiness
+waits for the retained raw-sensor replay and gateway result-index initialization.
+
+Only after local readiness, apply the named tunnel API route according to
+[Cloudflare operations](cloudflare-tunnel.md), then verify the public connection.
+Neither a successful image build nor `/healthz` alone proves the phone contract.
 
 ## Operate
-
-After `ssh zerod`:
 
 ```sh
 cd ~/team-zero-water-monitor
 sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml --profile sim ps
-sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml logs -f nex simulator
+sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml logs --tail 50 gateway nex
 sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml stop simulator
-sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml --profile sim up -d --wait
+sudo -n docker compose -f compose.yaml -f deploy/websocket.compose.yaml --profile sim up -d --no-build --wait
+sudo -n docker compose exec nex python -m water_monitor.health
+curl -f http://127.0.0.1:8765/healthz
+curl -f http://127.0.0.1:2000/ready
+sudo -n docker stats --no-stream
 ```
 
-Docker starts at boot. The broker, NEX node, and simulator use `unless-stopped`.
-NEX automatically deploys the processor when its container starts. Stopping the
-simulator leaves all ingestion and processing services running for real Picos.
+Stopping the simulator leaves real sensor ingestion, spatial processing, and
+the app API running. Simulator readings are synthetic at `25.7617, -80.1918`;
+the app must label their provenance. Use a separate demo/test fix to exercise
+these coordinates rather than changing a real phone location record.
 
-## HA and Portainer operation
+`/healthz` returns 200 only when the gateway's NATS/index path and the recent NEX
+worker heartbeat are ready, otherwise 503. It contains no user data. Container
+logs suppress token and location payload logging. Do not run `docker compose
+config` into shared logs because it interpolates secrets.
 
-Portainer owns the `water-homeassistant` stack, so HA's Compose definition is
-editable in its stack editor. The backend, management UI, and tunnel were
-created with external Compose; Portainer can inspect their containers, logs,
-and status, while their Compose files remain authoritative on disk.
+All core services restart with Docker (`unless-stopped`). JetStream's named
+volume preserves app data; never use `down -v`. Preserve the old history and HA
+volumes as well. Memory limits in Compose are not enforced by this Pi's kernel;
+monitor real usage. The configured JetStream file-store limit remains enforced.
 
-HA configuration/history/authentication use the named
-`water-homeassistant_ha_config` volume. The base `configuration.yaml` is mounted
-read-only from `deploy/homeassistant/`; history retention is seven days.
-Portainer's state uses `water-management_portainer_data`. Preserve these volumes.
-
-For a fresh equivalent installation on the Pi, generate `.env` and the private
-Portainer bootstrap password file, then start the management container:
+Portainer is a separate management project:
 
 ```sh
-cd ~/team-zero-water-monitor
-python3 scripts/init_env.py
-sudo -n docker compose -f deploy/portainer.compose.yaml up -d
-```
-
-With the same `.env` in the laptop workspace and development requirements installed:
-
-```powershell
-.\.venv\Scripts\python scripts/setup_homeassistant.py --ha-url http://10.104.0.82:8123 --portainer-url https://10.104.0.82:9443 --portainer-self-signed
-```
-
-This imports the HA stack if missing, completes fresh local onboarding, configures
-MQTT 3.1.1 at `127.0.0.1:1883`, imports the dedicated Dewin dashboard, and verifies
-the six simulated entities. Existing users and MQTT settings are preserved on
-rerun. The script's temporary HA login session is revoked afterward.
-
-For routine operations, use Portainer or:
-
-```sh
-sudo -n docker logs --tail 50 water-homeassistant-homeassistant-1
-sudo -n docker restart water-homeassistant-homeassistant-1
 sudo -n docker compose -f deploy/portainer.compose.yaml ps
-sudo -n docker compose -f deploy/portainer.compose.yaml logs --tail 50
 ```
 
-Tunnel permissions and rollback are in [the Cloudflare notes](cloudflare-tunnel.md).
-The separate durable meal-results stream and iOS handoff are in
-[the iOS results contract](ios-results-contract.md).
+Use its private `PORTAINER_ADMIN_PASSWORD` with username `admin`. Its local HTTPS
+certificate is self-signed. It has no public tunnel route.
 
-## Verification performed on the physical Pi
+## Verify the real API
 
-- Simulated Pico MQTT ingestion into JetStream.
-- HA-compatible discovery/state and correct rolling means.
-- Duplicate delivery, late measurements, and malformed packet handling.
-- Retained discovery, non-retained live states, and HA birth refresh.
-- NATS WebSocket processed feed; viewer publishing/raw subscriptions denied.
-- Processor downtime plus a broker restart, followed by durable catch-up.
-- Broker restart while the processor runs; publisher and processor reconnect.
-- Consumer returns to zero pending/unacknowledged messages.
-- Live simulated readings received directly over the LAN at `10.104.0.82:1883`.
-- Existing HTTP services on ports 80 and 3000 still return HTTP 200.
-
-Real HA was also connected and verified with all six live simulated entities.
-All six became unavailable after stopping the simulator, returned after restarting
-it, and returned again after restarting HA with its saved MQTT integration.
-The `ZERO_RESULTS` stream captured an offline meal-result test, delivered it
-through a filtered durable consumer, and preserved explicit ACK progress on
-rebind. Phone credentials and an actual Swift app connection still require
-the teammate's SDK/transport details.
-
-Memory controller support is disabled in this Pi's kernel, so Docker reports that
-the configured container memory ceilings are not enforced. With broker and NEX
-processor running, the host had about 3.2 GiB available. Summed process RSS was
-about 122 MiB (this sum includes shared pages). The simulator adds another Python
-process. JetStream's own disk retention limits remain configured.
-After adding HA, Portainer, and cloudflared, the host had about 2.8 GiB available
-and 16 GiB free on the root filesystem. The existing web apps still returned 200.
-
-## Repeat the remote smoke test from the laptop
-
-Stop the Pi's simulator first. In one laptop terminal, forward unused local ports:
+From the laptop, with private demo tokens in `backend/.env`:
 
 ```sh
-ssh -N -L 11883:127.0.0.1:1883 -L 14222:127.0.0.1:4222 -L 18081:127.0.0.1:8080 zerod
+cd backend
+python scripts/check_live_api.py --url https://dewin-api.cbnsndwch.dev
 ```
 
-In a second PowerShell terminal in the local project:
+The test creates durable synthetic location records for the two demo identities.
+It covers authentication, real Socket.IO transport, position ACK/retry/conflict,
+live spatial results, private/public isolation, no-match, history pagination and
+reconnect recovery. Report actual completed checks separately from the local
+memory-only mock. Controlled broker/worker/gateway restart verification should
+also prove retained results, original receipt times, automatic reconnection, and
+offline work catch-up before calling durability verified.
 
-```powershell
-$env:MQTT_PORT='11883'
-$env:NATS_PORT='14222'
-$env:WS_PORT='18081'
-.\.venv\Scripts\python scripts/smoke_test.py --ssh zerod --websocket --restarts
+For loopback debugging without changing firewall rules:
+
+```sh
+ssh -N -L 18765:127.0.0.1:8765 zerod
 ```
 
-`--ssh zerod` directs Compose restart/cleanup operations to the Pi. The local port
-overrides direct the test's protocol connections through the SSH tunnel. This
-test deliberately restarts only this project's Pi services. Close the forwarding
-terminal afterward and restart the simulator if desired.
-
-
-## Sensor contract extension, 18 October 2026
-
-The running NEX/simulator image is now `water-monitor:spatial-contract`. A
-synthetic packet with coordinates and three air/water readings was published
-over LAN MQTT with QoS 1, captured in `ENV_RAW`, and accepted by the NEX worker.
-The complete original packet, including `position` and `medium`, was preserved.
-This verifies ingestion, not the pending spatial Socket.IO gateway. Canonical
-source and team handoffs now live under `backend/` in `jemsbhai/envlab`.
+Then run the live check with `--url http://127.0.0.1:18765`. Keep the forward open
+until it finishes. Recheck HTTP 200 on the existing ports 80 and 3000 after
+deployment. Actual Swift app/Xcode validation remains with the iOS owner.

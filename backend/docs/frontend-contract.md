@@ -1,11 +1,13 @@
 # Dewin frontend feed
 
 **Legacy development feed:** the current iOS integration uses
-[Socket.IO API v1](api-v1.md), whose gateway is pending implementation. This
-document describes the previously deployed NATS socket; do not use it as the
-new app API.
+[Socket.IO API v1](api-v1.md). Its real gateway is deployed and publicly verified; see
+[the deployment notes](deployment-zerod.md) for verified status. This document
+records the earlier NATS socket, retired at the API cutover. Its instructions
+below are historical; do not use them as the current app API or re-enable a
+public unscoped sensor feed for private devices.
 
-The deployed public endpoint is **`wss://dewin-events.cbnsndwch.dev`**.
+The previous public endpoint was **`wss://dewin-events.cbnsndwch.dev`**.
 Username: `viewer`. Password: `VIEWER_PASSWORD` from the private backend `.env`.
 Subscribe to `env.processed.>`. See [tunnel operations](cloudflare-tunnel.md).
 

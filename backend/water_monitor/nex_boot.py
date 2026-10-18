@@ -15,13 +15,13 @@ import time
 from urllib.parse import quote, urlsplit, urlunsplit
 
 from .settings import Settings
-from .worker import connect_nats, ensure_stream
+from .dewin_bus import connect, ensure_resources
 
 
 async def bootstrap_stream(settings):
-    nc = await connect_nats(settings)
+    nc = await connect("dewin-nex-bootstrap")
     try:
-        await ensure_stream(nc.jetstream())
+        await ensure_resources(nc.jetstream())
     finally:
         await nc.close()
 
@@ -44,7 +44,7 @@ def main():
     config.chmod(0o600)
     workload = json.loads(Path("/app/deploy/processor.Nexfile.json").read_text())
     allowed = ("NATS_URL", "NATS_USER", "NATS_PASSWORD", "MQTT_HOST", "MQTT_PORT", "MQTT_USER", "MQTT_PASSWORD",
-               "DATABASE_PATH", "HEALTH_PATH", "SENSOR_EXPIRE_SECONDS", "WINDOW_SECONDS", "HISTORY_DAYS")
+               "DATABASE_PATH", "HEALTH_PATH", "SENSOR_EXPIRE_SECONDS", "WINDOW_SECONDS", "HISTORY_DAYS", "REGISTRY_PATH")
     workload["start_request"]["environment"] = {key: os.environ[key] for key in allowed if key in os.environ}
     workload["start_request"]["environment"].update(PYTHONUNBUFFERED="1", PYTHONDONTWRITEBYTECODE="1")
     nexfile = runtime / "processor.json"

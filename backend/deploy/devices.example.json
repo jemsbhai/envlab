@@ -1,0 +1,7 @@
+{
+  "devices": {
+    "sim-pico-01": {"visibility": "public"},
+    "sim-pico-02": {"visibility": "public"},
+    "sim-pico-03": {"visibility": "private", "ownerUserId": "demo-ios"}
+  }
+}
