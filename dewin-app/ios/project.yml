@@ -1,0 +1,105 @@
+# XcodeGen spec — the .xcodeproj is generated, never committed.
+# Run `xcodegen generate` in this directory after pulling (run-on-phone.sh does it).
+name: Dewin
+options:
+  bundleIdPrefix: io.occh
+  deploymentTarget:
+    iOS: "17.2"   # DAT SDK minimum; also covers SwiftData and Swift Charts
+  createIntermediateGroups: true
+packages:
+  MetaWearablesDAT:
+    url: https://github.com/facebook/meta-wearables-dat-ios
+    exactVersion: 1.0.1
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift
+    exactVersion: 16.1.1
+configFiles:
+  Debug: Config/App.xcconfig
+  Release: Config/App.xcconfig
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    DEVELOPMENT_TEAM: 5A63ZMX7US
+    CODE_SIGN_STYLE: Automatic
+targets:
+  Dewin:
+    type: application
+    platform: iOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.occh.dewin
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # iPhone only (same as Fotante): otherwise it declares iPad support while
+        # offering portrait alone, which the build warns about.
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    sources:
+      - Dewin/Sources
+      # App icon, wordmark, accent color (from the Dewin logo pack).
+      - Dewin/Resources
+      # Video feed for Meta's mock glasses (simulator has no camera). Debug use only.
+      - path: Dewin/DebugResources
+        buildPhase: resources
+    dependencies:
+      - package: MetaWearablesDAT
+        product: MWDATCore
+      - package: MetaWearablesDAT
+        product: MWDATCamera
+      - package: MetaWearablesDAT
+        product: MWDATInputs
+      - package: MetaWearablesDAT
+        product: MWDATMockDevice
+      - package: MetaWearablesDAT
+        product: MWDATSpeech
+      - package: SocketIO
+        product: SocketIO
+    entitlements:
+      path: Dewin/Dewin.entitlements
+      properties:
+        keychain-access-groups: ["$(AppIdentifierPrefix)$(CFBundleIdentifier)"]
+        com.apple.developer.networking.HotspotConfiguration: true
+        com.apple.developer.networking.wifi-info: true
+    info:
+      path: Dewin/Info.plist
+      properties:
+        CFBundleDisplayName: Dewin
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+          UIImageName: LaunchLogo
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Dark mode only, everywhere (incl. system sheets and alerts).
+        UIUserInterfaceStyle: Dark
+        # Meta AI calls back into the app on this scheme during registration/permissions.
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleURLSchemes: [dewin]
+        # Required by the Device Access Toolkit. In Developer Mode the IDs can stay
+        # empty; for release channels, set them in Config/Secrets.xcconfig.
+        MWDAT:
+          AppLinkURLScheme: "dewin://"
+          MetaAppID: $(META_APP_ID)
+          ClientToken: $(CLIENT_TOKEN)
+          TeamID: $(DEVELOPMENT_TEAM)
+        # Same set as Meta's CameraAccess sample: keeps the glasses link and speech output
+        # alive with the phone locked.
+        UIBackgroundModes: [processing, bluetooth-central, audio, bluetooth-peripheral]
+        NSBluetoothAlwaysUsageDescription: Connects to your Meta glasses.
+        NSBluetoothPeripheralUsageDescription: Connects to your Meta glasses.
+        NSLocalNetworkUsageDescription: Lets your phone find and connect to your glasses over Wi-Fi.
+        NSBonjourServices: [_bonjour._tcp]
+        NSCameraUsageDescription: Uses the phone camera as a stand-in for the glasses when testing.
+        # Not used on a real pair ("Hey Dewin" is recognized on the glasses); Meta's mock
+        # glasses can feed speech from the phone's mic.
+        NSMicrophoneUsageDescription: Lets you test "Hey Dewin" with simulated glasses.
+        NSLocationWhenInUseUsageDescription: Shows air and water quality around you, and shares your area with Dewin so it can collect readings nearby.
+        NSPhotoLibraryUsageDescription: Lets you log a meal from a photo you already took.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true

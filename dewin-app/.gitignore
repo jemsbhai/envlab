@@ -1,0 +1,5 @@
+__pycache__/
+ios/Dewin.xcodeproj/
+ios/Dewin/Info.plist
+ios/Dewin/Dewin.entitlements
+ios/Config/Secrets.xcconfig

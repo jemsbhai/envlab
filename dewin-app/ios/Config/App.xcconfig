@@ -1,0 +1,9 @@
+// Team and signing live in project.yml (team 5A63ZMX7US, automatic signing),
+// same as the other apps. This file carries per-developer secrets only.
+
+// Meta Wearables Developer Center. Can stay empty while Meta AI is in Developer Mode.
+META_APP_ID =
+CLIENT_TOKEN =
+
+// Real values go in Secrets.xcconfig (gitignored).
+#include? "Secrets.xcconfig"

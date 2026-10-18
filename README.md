@@ -9,6 +9,7 @@ authorized readings to each user's timeline.
 | Working on | Start here |
 | --- | --- |
 | iOS / map / time scrubber | [iOS agent handoff](docs/ios-agent-handoff.md) |
+| Dewin iPhone app (food + air/water, SwiftUI) | [dewin-app/README.md](dewin-app/README.md); logo and splash in [brand/](brand/README.md) |
 | Sensor firmware / publishing | [Sensor agent handoff](docs/sensor-agent-handoff.md) |
 | App API payloads | [Socket.IO API v1](backend/docs/api-v1.md) |
 | MQTT payloads | [Sensor MQTT v1](backend/docs/pico-contract.md) |
@@ -54,6 +55,8 @@ sensors/   Sensor firmware and publishing integrations (teammates)
 pi/        Identification kiosk: face check, card sessions, Dewin presence client, Supabase record
 nano/      RC522 card reader firmware (Nano 33 IoT), tamper telemetry
 tools/     Laptop helpers (spoken kiosk feedback)
+dewin-app/ Dewin iPhone app: food (Meta glasses, Claude photo analysis) and air/water (Socket.IO api-v1)
+brand/     Dewin logo pack and splash
 ```
 
 The kiosk feeds the same pipeline as a phone: while a person is checked in, it
