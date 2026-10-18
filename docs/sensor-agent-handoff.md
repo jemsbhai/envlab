@@ -1,5 +1,7 @@
 # Dewin: start here for sensor agents
 
+Download/copy the complete [sensor developer prompt](sensor-dev-prompt.md).
+
 The repo's earlier JSONL/Supabase contract is legacy kiosk work. For the current
 air/water exposure app, sensor nodes publish **MQTT 3.1.1** directly to the Pi.
 NATS is the MQTT broker; JetStream persists the raw packets. NEX workers process
